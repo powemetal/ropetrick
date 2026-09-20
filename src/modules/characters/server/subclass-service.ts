@@ -47,35 +47,21 @@ export async function fetchSubclassesForClass(className: string) {
   }
 }
 
-// 2. Récupération des dons (Feats)
+// 2. Récupération des dons (Feats) directement depuis la table feats
 export async function fetchAvailableFeats() {
   try {
-    // Si tu as un modèle de dons dans Prisma (ex: dndFeat ou feat) :
-    // Remplace par prisma.dndFeat ou le nom exact si présent.
-    const feats = await (prisma as any).dndFeat?.findMany({
+    const feats = await prisma.feats.findMany({
       select: {
         id: true,
         name: true,
+        category: true, // <--- Ajoute cette ligne ici !
         description: true,
+        prerequisite: true,
       },
       orderBy: { name: "asc" },
     });
-
-    if (feats && feats.length > 0) return feats;
-
-    // Fallback : Dons officiels D&D 5e si la table est vide ou n'existe pas encore
-    return [
-      { id: "feat-sharpshooter", name: "Tireur d'élite", description: "Attaques à distance ignorant les abris partiels et pénalité de -5 pour +10 aux dégâts." },
-      { id: "feat-sentinel", name: "Sentinelle", description: "Réduit la vitesse ennemie à 0 lors d'attaques d'opportunité." },
-      { id: "feat-polearm-master", name: "Maître d'hast", description: "Attaque d'opportunité quand un ennemi entre à portée et frappe bonus." },
-      { id: "feat-great-weapon-master", name: "Maître des armes lourdes", description: "Attaque bonus après un coup critique et option -5 au toucher pour +10 dégâts." },
-      { id: "feat-lucky", name: "Chanceux", description: "3 points de chance pour relancer des d20 d'attaques, tests ou sauvegardes." },
-      { id: "feat-war-caster", name: "Mage de combat", description: "Avantage aux jets de concentration et sorts en réaction d'opportunité." },
-      { id: "feat-alert", name: "Vigilant", description: "+5 à l'initiative et immunité à la surprise." },
-      { id: "feat-resilient", name: "Résistant", description: "+1 à une caractéristique et maîtrise de ses jets de sauvegarde." },
-      { id: "feat-fey-touched", name: "Touché par la Féerie", description: "+1 en Int/Sag/Cha et sort Foulée brumeuse une fois par repos long." },
-      { id: "feat-shadow-touched", name: "Touché par les Ombres", description: "+1 en Int/Sag/Cha et sort Invisibilité une fois par repos long." },
-    ];
+    
+    return feats;
   } catch (error) {
     console.error("Erreur chargement dons:", error);
     return [];
@@ -122,6 +108,29 @@ export async function fetchSpellsForLevelUp(className: string, targetLevel: numb
       }));
   } catch (error) {
     console.error("Erreur chargement sorts level-up:", error);
+    return [];
+  }
+}
+
+export async function fetchAvailableSpells() {
+  try {
+    const spells = await prisma.spell.findMany({
+      select: {
+        id: true,
+        name: true,
+        level: true,
+        school: true,
+        range: true,
+        castingTime: true,
+        components: true,
+        concentration: true,
+        description: true,
+      },
+      orderBy: [{ level: "asc" }, { name: "asc" }],
+    });
+    return spells;
+  } catch (error) {
+    console.error("Erreur chargement sorts:", error);
     return [];
   }
 }

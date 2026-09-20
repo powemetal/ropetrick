@@ -1,7 +1,19 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { type CharacterNewSpellState, type CharacterSpellEntry } from "@/modules/characters/components/sheet/shared";
+
+type SpellOption = {
+  id: string;
+  name: string;
+  level: number;
+  school?: string | null;
+  range?: string | null;
+  castingTime?: string | null;
+  components?: string | null;
+  concentration?: boolean;
+  description?: string | null;
+};
 
 type CharacterSpellbookTabProps = {
   editing: boolean;
@@ -14,6 +26,7 @@ type CharacterSpellbookTabProps = {
   setDraftSpells: (value: CharacterSpellEntry[] | ((current: CharacterSpellEntry[]) => CharacterSpellEntry[])) => void;
   slots: number[];
   setSlots: (value: number[] | ((current: number[]) => number[])) => void;
+  availableSpells?: SpellOption[];
 };
 
 export function CharacterSpellbookTab({
@@ -27,11 +40,35 @@ export function CharacterSpellbookTab({
   setDraftSpells,
   slots,
   setSlots,
+  availableSpells = [],
 }: CharacterSpellbookTabProps) {
-  // Réconciliation tolérante pour les tours de magie (0, "0", ou non défini)
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedLevelFilter, setSelectedLevelFilter] = useState<string>("ALL");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isCustomMode, setIsCustomMode] = useState(false);
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const [levelSearches, setLevelSearches] = useState<Record<string, string>>({});
+
+  const handleLevelSearchChange = (key: string, value: string) => {
+    setLevelSearches((prev) => ({ ...prev, [key]: value }));
+  };
+
   const normalizedCantrips = useMemo(() => {
     const list = [...(cantrips ?? [])];
-    // Si des sorts de niveau 0 se sont glissés dans leveledSpells, on les rapatrie
     for (const spell of leveledSpells ?? []) {
       if (Number(spell.level) === 0 && !list.some((c) => c.id === spell.id)) {
         list.push(spell);
@@ -40,7 +77,6 @@ export function CharacterSpellbookTab({
     return list;
   }, [cantrips, leveledSpells]);
 
-  // Regroupement des sorts de niveau 1 à 9
   const spellsByLevel = useMemo(() => {
     const map = new Map<number, CharacterSpellEntry[]>();
     for (let i = 1; i <= 9; i++) {
@@ -57,10 +93,8 @@ export function CharacterSpellbookTab({
     return map;
   }, [leveledSpells]);
 
-  // Initialisation neutre pour éviter l'erreur d'hydratation SSR / Client
   const [collapsedLevels, setCollapsedLevels] = useState<Record<string, boolean>>({});
 
-  // Chargement différé du localStorage après le montage client
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
@@ -86,10 +120,38 @@ export function CharacterSpellbookTab({
     setCollapsedLevels((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const filteredSpells = useMemo(() => {
+    return availableSpells.filter((spell) => {
+      const matchesLevel = selectedLevelFilter === "ALL" || Number(spell.level) === Number(selectedLevelFilter);
+      const query = searchTerm.trim().toLowerCase();
+      const matchesSearch = !query || 
+        spell.name.toLowerCase().includes(query) || 
+        (spell.school && spell.school.toLowerCase().includes(query)) ||
+        (spell.description && spell.description.toLowerCase().includes(query));
+      
+      return matchesLevel && matchesSearch;
+    });
+  }, [availableSpells, searchTerm, selectedLevelFilter]);
+
+  const handleSelectSpell = (spell: SpellOption) => {
+    setNewSpell({
+      name: spell.name,
+      level: spell.level,
+      school: spell.school ?? "Évocation",
+      range: spell.range ?? "18 m",
+      castingTime: spell.castingTime ?? "1 action",
+      components: spell.components ?? "V, S",
+      concentration: spell.concentration ?? false,
+      description: spell.description ?? "",
+    });
+    setSearchTerm(spell.name);
+    setIsDropdownOpen(false);
+  };
+
   const handleAddSpell = () => {
     if (!newSpell.name.trim()) return;
     const spellToAdd: CharacterSpellEntry = {
-      id: `temp-spell-${Date.now()}`,
+      id: `custom-spell-${Date.now()}`,
       name: newSpell.name.trim(),
       level: Number(newSpell.level),
       school: newSpell.school,
@@ -103,11 +165,15 @@ export function CharacterSpellbookTab({
     };
     setDraftSpells((current) => [...current, spellToAdd]);
     setNewSpell({ name: "", level: 0, school: "Évocation", range: "18 m", castingTime: "1 action", components: "V, S", concentration: false, description: "" });
+    setSearchTerm("");
+    setIsCustomMode(false);
   };
 
   const handleRemoveSpell = (id: string) => {
     setDraftSpells((current) => current.filter((spell) => spell.id !== id));
   };
+
+  const safeSlots = Array.isArray(slots) && slots.length > 0 ? slots : Array(9).fill(0);
 
   return (
     <section className="mt-4 rounded-lg border p-4" style={{ borderColor: "var(--dnd-accent-soft)", background: "var(--dnd-surface)" }}>
@@ -115,11 +181,11 @@ export function CharacterSpellbookTab({
       <div className="mb-6">
         <h4 className="font-semibold text-[var(--dnd-ink)]">Emplacements de Sorts</h4>
         <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-9">
-          {slots.map((total, index) => (
+          {safeSlots.map((total, index) => (
             <button
-              key={index}
+              key={`slot-${index}`}
               type="button"
-              onClick={() => setSlots((current) => current.map((value, slot) => (slot === index && value > 0 ? value - 1 : value)))}
+              onClick={() => setSlots((current) => (current ?? Array(9).fill(0)).map((value, slot) => (slot === index && value > 0 ? value - 1 : value)))}
               className="group flex flex-col items-center rounded-lg border p-2 transition-all hover:border-[var(--dnd-accent)] active:scale-95"
               style={{
                 borderColor: total > 0 ? "var(--dnd-accent)" : "var(--dnd-accent-soft)",
@@ -141,102 +207,229 @@ export function CharacterSpellbookTab({
         <Tracker label="Bonus d'attaque de sort" value={`${spellAttackBonus >= 0 ? "+" : ""}${spellAttackBonus}`} />
       </div>
 
-      {/* 3. Formulaire d'ajout en mode édition */}
+      {/* 3. Formulaire d'ajout interactif et combobox */}
       {editing && (
-        <div className="mb-6 rounded-lg border border-dashed p-4" style={{ borderColor: "var(--dnd-accent)" }}>
-          <h4 className="font-semibold text-sm">Ajouter un sort au grimoire</h4>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            <input placeholder="Nom du sort" value={newSpell.name} onChange={(e) => setNewSpell({ ...newSpell, name: e.target.value })} className="rounded border bg-transparent px-2 py-1 text-sm" />
-            <select value={newSpell.level} onChange={(e) => setNewSpell({ ...newSpell, level: Number(e.target.value) })} className="rounded border bg-transparent px-2 py-1 text-sm">
-              <option value={0}>Tour de magie (Niveau 0)</option>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((lvl) => (
-                <option key={lvl} value={lvl}>
-                  Sort Niveau {lvl}
-                </option>
-              ))}
-            </select>
-            <input placeholder="École (ex: Évocation)" value={newSpell.school} onChange={(e) => setNewSpell({ ...newSpell, school: e.target.value })} className="rounded border bg-transparent px-2 py-1 text-sm" />
-            <input placeholder="Portée (ex: 18 m)" value={newSpell.range} onChange={(e) => setNewSpell({ ...newSpell, range: e.target.value })} className="rounded border bg-transparent px-2 py-1 text-sm" />
-            <input placeholder="Temps d'incantation" value={newSpell.castingTime} onChange={(e) => setNewSpell({ ...newSpell, castingTime: e.target.value })} className="rounded border bg-transparent px-2 py-1 text-sm" />
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={newSpell.concentration} onChange={(e) => setNewSpell({ ...newSpell, concentration: e.target.checked })} />
-              Nécessite concentration
-            </label>
-            <textarea placeholder="Description complète du sort..." value={newSpell.description} onChange={(e) => setNewSpell({ ...newSpell, description: e.target.value })} className="rounded border bg-transparent px-2 py-1 text-sm sm:col-span-3" rows={2} />
+        <div className="mb-6 rounded-lg border border-dashed p-4 relative" style={{ borderColor: "var(--dnd-accent)" }}>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-semibold text-sm">
+              {isCustomMode ? "Créer un sort personnalisé" : "Ajouter un sort depuis le compendium"}
+            </h4>
+            <button
+              type="button"
+              onClick={() => {
+                setIsCustomMode(!isCustomMode);
+                setNewSpell({ name: "", level: 0, school: "Évocation", range: "18 m", castingTime: "1 action", components: "V, S", concentration: false, description: "" });
+                setSearchTerm("");
+              }}
+              className="text-xs font-semibold underline hover:opacity-80"
+              style={{ color: "var(--dnd-accent)" }}
+            >
+              {isCustomMode ? "← Revenir au compendium" : "+ Créer un sort custom"}
+            </button>
           </div>
-          <button type="button" onClick={handleAddSpell} className="mt-3 rounded px-3 py-1.5 text-xs font-semibold text-white" style={{ background: "var(--dnd-accent)" }}>
+
+          {!isCustomMode ? (
+            <div ref={dropdownRef}>
+              {/* Filtres de niveau interactifs */}
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {[
+                  { label: "Tous", value: "ALL" },
+                  { label: "Tours (0)", value: "0" },
+                  ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((lvl) => ({ label: `Niv. ${lvl}`, value: String(lvl) }))
+                ].map((lvlCat) => (
+                  <button
+                    key={lvlCat.value}
+                    type="button"
+                    onClick={() => {
+                      setSelectedLevelFilter(lvlCat.value);
+                      if (lvlCat.value !== "ALL") {
+                        setNewSpell((current) => ({ ...current, level: Number(lvlCat.value) }));
+                      }
+                      setIsDropdownOpen(true);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                      selectedLevelFilter === lvlCat.value ? "text-white shadow-sm" : "opacity-70 hover:opacity-100 border"
+                    }`}
+                    style={{
+                      backgroundColor: selectedLevelFilter === lvlCat.value ? "var(--dnd-accent)" : "transparent",
+                      borderColor: "var(--dnd-accent-soft)"
+                    }}
+                  >
+                    {lvlCat.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-3 relative">
+                {/* Combobox de recherche textuelle avec réinitialisation de la description si vidé */}
+                <div className="relative sm:col-span-3">
+                  <input
+                    type="text"
+                    placeholder={selectedLevelFilter === "ALL" ? "Rechercher un sort..." : `Rechercher un sort de niveau ${selectedLevelFilter}...`}
+                    value={searchTerm}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSearchTerm(val);
+                      setIsDropdownOpen(true);
+                      if (!val.trim()) {
+                        setNewSpell((current) => ({ ...current, name: "", description: "" }));
+                      } else {
+                        setNewSpell((current) => ({ ...current, name: val }));
+                      }
+                    }}
+                    onFocus={() => setIsDropdownOpen(true)}
+                    className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                    style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}
+                  />
+
+                  {isDropdownOpen && filteredSpells.length > 0 && (
+                    <ul className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl border shadow-lg" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)" }}>
+                      {filteredSpells.map((spell) => (
+                        <li
+                          key={spell.id}
+                          onClick={() => handleSelectSpell(spell)}
+                          className="cursor-pointer px-3 py-2 text-xs sm:text-sm transition-colors hover:bg-black/10 dark:hover:bg-white/10 flex justify-between items-center"
+                        >
+                          <div>
+                            <span className="font-medium">{spell.name}</span>
+                            <span className="ml-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--dnd-accent-soft)] opacity-80" style={{ color: "var(--dnd-accent)" }}>
+                              {spell.level === 0 ? "Tour de magie" : `Niveau ${spell.level}`}
+                            </span>
+                          </div>
+                          {spell.school && (
+                            <span className="text-[10px] opacity-60 italic ml-2">{spell.school}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {/* Zone de description agrandie (hauteur rows={4}) */}
+                <textarea 
+                  placeholder="Description complète du sort..." 
+                  value={newSpell.description} 
+                  onChange={(e) => setNewSpell({ ...newSpell, description: e.target.value })} 
+                  className="rounded border bg-transparent px-2.5 py-2 text-sm sm:col-span-3 outline-none" 
+                  rows={4} 
+                  style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} 
+                />
+              </div>
+            </div>
+          ) : (
+            /* Mode Custom complet (avec textarea agrandi aussi) */
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <input placeholder="Nom du sort" value={newSpell.name} onChange={(e) => setNewSpell({ ...newSpell, name: e.target.value })} className="rounded border bg-transparent px-2 py-1 text-sm outline-none" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} />
+              <select value={newSpell.level} onChange={(e) => setNewSpell({ ...newSpell, level: Number(e.target.value) })} className="rounded border bg-transparent px-2 py-1 text-sm outline-none" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}>
+                <option value={0}>Tour de magie (Niveau 0)</option>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((lvl) => (
+                  <option key={`opt-lvl-${lvl}`} value={lvl}>
+                    Sort Niveau {lvl}
+                  </option>
+                ))}
+              </select>
+              <input placeholder="École (ex: Évocation)" value={newSpell.school} onChange={(e) => setNewSpell({ ...newSpell, school: e.target.value })} className="rounded border bg-transparent px-2 py-1 text-sm outline-none" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} />
+              <input placeholder="Portée (ex: 18 m)" value={newSpell.range} onChange={(e) => setNewSpell({ ...newSpell, range: e.target.value })} className="rounded border bg-transparent px-2 py-1 text-sm outline-none" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} />
+              <input placeholder="Temps d'incantation" value={newSpell.castingTime} onChange={(e) => setNewSpell({ ...newSpell, castingTime: e.target.value })} className="rounded border bg-transparent px-2 py-1 text-sm outline-none" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} />
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={newSpell.concentration} onChange={(e) => setNewSpell({ ...newSpell, concentration: e.target.checked })} />
+                Nécessite concentration
+              </label>
+              <textarea placeholder="Description complète du sort..." value={newSpell.description} onChange={(e) => setNewSpell({ ...newSpell, description: e.target.value })} className="rounded border bg-transparent px-2.5 py-2 text-sm sm:col-span-3 outline-none" rows={4} style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} />
+            </div>
+          )}
+
+          <button type="button" onClick={handleAddSpell} className="mt-3 rounded px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:opacity-90" style={{ background: "var(--dnd-accent)" }}>
             + Ajouter le sort
           </button>
         </div>
       )}
 
       {/* 4. Section Collapsible : Tours de Magie */}
-      {(normalizedCantrips.length > 0 || editing) && (
-        <div
-          className="overflow-hidden rounded-lg border transition-all duration-150 hover:border-[var(--dnd-accent)]"
-          style={{ borderColor: "var(--dnd-accent-soft)" }}
-        >
-          <button
-            type="button"
-            onClick={() => toggleLevel("cantrips")}
-            className="group flex w-full items-center justify-between px-4 py-3 text-left transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--dnd-accent)_15%,transparent)] active:scale-[0.99]"
-          >
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-[var(--dnd-ink)]">Tours de Magie (Cantrips)</span>
-              <span className="text-xs text-[var(--dnd-muted)] font-mono">({normalizedCantrips.length})</span>
-            </div>
-            <span
-              className="text-base font-bold transition-all duration-200 group-hover:scale-125"
-              style={{
-                transform: collapsedLevels.cantrips ? "rotate(-90deg)" : "rotate(0deg)",
-                color: "var(--dnd-accent)",
-              }}
-            >
-              ▾
-            </span>
-          </button>
+      {(normalizedCantrips.length > 0 || editing) && (() => {
+        const cantripFilter = (levelSearches["cantrips"] ?? "").toLowerCase();
+        const filteredCantripsList = normalizedCantrips.filter((s) => s.name.toLowerCase().includes(cantripFilter) || (s.description && s.description.toLowerCase().includes(cantripFilter)));
 
+        return (
           <div
-            className={`transition-all duration-300 ease-in-out ${
-              collapsedLevels.cantrips ? "max-h-0 opacity-0 overflow-hidden" : "max-h-[3000px] opacity-100"
-            }`}
+            className="overflow-hidden rounded-lg border transition-all duration-150 hover:border-[var(--dnd-accent)]"
+            style={{ borderColor: "var(--dnd-accent-soft)" }}
           >
-            <div className="p-4 pt-0">
-              <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                {normalizedCantrips.map((spell) => (
-                  <article key={spell.id} className="relative rounded-md border p-3 text-sm" style={{ borderColor: "var(--dnd-accent-soft)" }}>
-                    {editing && (
-                      <button type="button" onClick={() => handleRemoveSpell(spell.id)} className="absolute right-2 top-2 text-xs text-red-600 hover:underline">
-                        Supprimer
-                      </button>
-                    )}
-                    <strong>{spell.name}</strong>
-                    <p className="mt-2 whitespace-pre-wrap leading-6 text-xs" style={{ color: "var(--dnd-muted)" }}>
-                      {spell.description}
-                    </p>
-                  </article>
-                ))}
+            <button
+              type="button"
+              onClick={() => toggleLevel("cantrips")}
+              className="group flex w-full items-center justify-between px-4 py-3 text-left transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--dnd-accent)_15%,transparent)] active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-[var(--dnd-ink)]">Tours de Magie (Cantrips)</span>
+                <span className="text-xs text-[var(--dnd-muted)] font-mono">({filteredCantripsList.length})</span>
+              </div>
+              <span
+                className="text-base font-bold transition-all duration-200 group-hover:scale-125"
+                style={{
+                  transform: collapsedLevels.cantrips ? "rotate(-90deg)" : "rotate(0deg)",
+                  color: "var(--dnd-accent)",
+                }}
+              >
+                ▾
+              </span>
+            </button>
+
+            <div
+              className={`transition-all duration-300 ease-in-out ${
+                collapsedLevels.cantrips ? "max-h-0 opacity-0 overflow-hidden" : "max-h-[3000px] opacity-100"
+              }`}
+            >
+              <div className="p-4 pt-0">
+                {normalizedCantrips.length > 3 && (
+                  <input
+                    type="text"
+                    placeholder="Filtrer les tours de magie..."
+                    value={levelSearches["cantrips"] ?? ""}
+                    onChange={(e) => handleLevelSearchChange("cantrips", e.target.value)}
+                    className="w-full rounded-lg border px-2.5 py-1 text-xs outline-none mb-3"
+                    style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}
+                  />
+                )}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {filteredCantripsList.map((spell, idx) => (
+                    <article key={`cantrip-${spell.id ?? idx}`} className="relative rounded-md border p-3 text-sm" style={{ borderColor: "var(--dnd-accent-soft)" }}>
+                      {editing && (
+                        <button type="button" onClick={() => handleRemoveSpell(spell.id)} className="absolute right-2 top-2 text-xs text-red-600 hover:underline">
+                          Supprimer
+                        </button>
+                      )}
+                      <strong>{spell.name}</strong>
+                      <p className="mt-2 whitespace-pre-wrap leading-6 text-xs" style={{ color: "var(--dnd-muted)" }}>
+                        {spell.description}
+                      </p>
+                    </article>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {/* 5. Sections Collapsibles : Sorts par niveau */}
+      {/* 5. Sections Collapsibles : Sorts par niveau (1 à 9) */}
       <div className="mt-4 space-y-3">
         {Array.from({ length: 9 }, (_, index) => {
           const level = index + 1;
           const spells = spellsByLevel.get(level) ?? [];
-          const slotTotal = slots[index] ?? 0;
+          const slotTotal = safeSlots[index] ?? 0;
           const isCollapsed = collapsedLevels[`level-${level}`] ?? false;
 
           if (spells.length === 0 && !editing) {
             return null;
           }
 
+          const lvlQuery = (levelSearches[`level-${level}`] ?? "").toLowerCase();
+          const filteredLevelSpells = spells.filter((s) => s.name.toLowerCase().includes(lvlQuery) || (s.description && s.description.toLowerCase().includes(lvlQuery)));
+
           return (
             <div
-              key={level}
+              key={`spell-level-section-${level}`}
               className="overflow-hidden rounded-lg border transition-all duration-150 hover:border-[var(--dnd-accent)]"
               style={{ borderColor: "var(--dnd-accent-soft)" }}
             >
@@ -248,7 +441,7 @@ export function CharacterSpellbookTab({
                 <div className="flex items-center gap-3">
                   <span className="font-semibold text-[var(--dnd-ink)]">Sorts de Niveau {level}</span>
                   <span className="text-xs text-[var(--dnd-muted)] font-mono">
-                    ({spells.length} sort{spells.length > 1 ? "s" : ""}{slotTotal > 0 ? ` • ${slotTotal} emplacement${slotTotal > 1 ? "s" : ""}` : ""})
+                    ({filteredLevelSpells.length} sort{filteredLevelSpells.length > 1 ? "s" : ""}{slotTotal > 0 ? ` • ${slotTotal} emplacement${slotTotal > 1 ? "s" : ""}` : ""})
                   </span>
                 </div>
                 <span
@@ -268,13 +461,23 @@ export function CharacterSpellbookTab({
                 }`}
               >
                 <div className="p-4 pt-0">
-                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                    {spells.map((spell) => {
+                  {spells.length > 3 && (
+                    <input
+                      type="text"
+                      placeholder={`Filtrer les sorts de niveau ${level}...`}
+                      value={levelSearches[`level-${level}`] ?? ""}
+                      onChange={(e) => handleLevelSearchChange(`level-${level}`, e.target.value)}
+                      className="w-full rounded-lg border px-2.5 py-1 text-xs outline-none mb-3"
+                      style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}
+                    />
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {filteredLevelSpells.map((spell, idx) => {
                       const componentsLabel = Array.isArray(spell.components)
                         ? spell.components.filter((entry): entry is string => typeof entry === "string").join(", ")
                         : "Aucune";
                       return (
-                        <article key={spell.id} className="relative rounded-md border p-3 text-sm" style={{ borderColor: "var(--dnd-accent-soft)" }}>
+                        <article key={`spell-item-${spell.id ?? idx}`} className="relative rounded-md border p-3 text-sm" style={{ borderColor: "var(--dnd-accent-soft)" }}>
                           {editing && (
                             <button type="button" onClick={() => handleRemoveSpell(spell.id)} className="absolute right-2 top-2 text-xs text-red-600 hover:underline">
                               Supprimer

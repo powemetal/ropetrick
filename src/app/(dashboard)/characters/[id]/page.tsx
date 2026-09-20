@@ -49,11 +49,18 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
     return { ok: true, message: "Note enregistrée." };
   }
 
-  async function updateCharacterAction(data: CharacterSheetUpdateData) {
+async function updateCharacterAction(data: CharacterSheetUpdateData) {
     "use server";
     const { userId: currentUserId } = await auth();
     if (!currentUserId) redirect("/sign-in");
-    await updateCharacter(currentUserId, id, data);
+    
+    // On fusionne les données reçues de la feuille avec les feats modifiés par l'utilisateur
+    const payload = {
+      ...data,
+      feats: (data as any).feats ?? [],
+    };
+
+    await updateCharacter(currentUserId, id, payload);
     revalidatePath(`/characters/${id}`);
   }
 
@@ -67,8 +74,8 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
 
     await updateCharacter(currentUserId, id, {
       name: existingCharacter.name,
-      class: existingCharacter.class,
-      subclass: existingCharacter.subclass,
+      class: existingCharacter.class ?? "",
+      subclass: existingCharacter.subclass ?? "",
       strength: existingCharacter.strength,
       dexterity: existingCharacter.dexterity,
       constitution: existingCharacter.constitution,
@@ -301,7 +308,11 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
             dndSubclass: character.dndSubclass,
             subclassId: character.subclassId,
             originFeat: character.background?.originFeat ?? null,
-            feats: character.levelUpFeats,
+            // CORRECTION : Fusion directe dans 'feats' acceptée par TypeScript et lue par le hook
+            feats: [
+              ...(Array.isArray(character.selectedFeats) ? character.selectedFeats : []),
+              ...(character.levelUpFeats ?? [])
+            ] as any,
             skillDefinitions,
             skillProficiencies: (character.skillProficiencies ?? {}) as Record<string, "NONE" | "PROFICIENT" | "EXPERTISE">,
           }}

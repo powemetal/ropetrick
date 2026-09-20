@@ -23,8 +23,24 @@ const FALLBACK_FEATS = [
 ];
 
 export async function fetchAvailableFeats() {
-  const feats = await prisma.feat.findMany({ select: { id: true, name: true, description: true, prerequisite: true }, orderBy: { name: "asc" } });
-  return feats.length ? feats : FALLBACK_FEATS;
+  console.log("🔍 Tentative de récupération des dons depuis Prisma...");
+  try {
+    const feats = await prisma.feats.findMany({ 
+      select: { 
+        id: true, 
+        name: true, 
+        description: true, 
+        prerequisite: true 
+      }, 
+      orderBy: { name: "asc" } 
+    });
+    
+  console.log(`✅ Succès ! ${feats.length} dons trouvés dans la BDD.`);
+    return feats;
+  } catch (error) {
+    console.error("❌ ERREUR CRITIQUE PRISMA SUR LES DONS :", error);
+    throw error; // On lance l'erreur pour voir ce qui bloque vraiment au lieu de la cacher
+  }
 }
 
 export async function fetchAvailableLevelUpSpells() {
@@ -269,7 +285,6 @@ export async function levelUpCharacter(userId: string, characterId: string, data
   });
 }
 
-// Redirige correctement vers la logique complète d'importation
 export async function importFoundryCharacter(userId: string, rawJson: unknown) {
   return createCharacterFromFoundry(userId, rawJson);
 }
@@ -304,10 +319,16 @@ export async function getCharacterById(characterId: string, userId: string) {
     include: { notebooks: { orderBy: { updatedAt: "desc" }, include: { attachments: true } }, campaignLinks: { include: { campaign: { select: { id: true, title: true } } } }, spells: { include: { spell: true } }, inventoryItems: { include: { item: true } }, dndClass: { include: { classFeatures: { where: { level: { lte: 20 } }, orderBy: [{ level: "asc" }, { name: "asc" }] } } }, dndSubclass: { select: { id: true, name: true, description: true } }, resources: true, languages: { include: { language: true } }, background: { include: { originFeat: true } } },
   });
   if (!character) return null;
-  const selectedFeatNames = Array.isArray(character.selectedFeats) ? character.selectedFeats.filter((entry): entry is string => typeof entry === "string") : [];
-  const levelUpFeats = selectedFeatNames.length ? await prisma.feat.findMany({ where: { name: { in: selectedFeatNames } } }) : [];
+
+  const selectedFeats = Array.isArray(character.selectedFeats) ? character.selectedFeats : [];
+  const rawImportData = character.rawImportData ?? null;
+
+  const selectedFeatNames = selectedFeats.map((entry) => (typeof entry === "string" ? entry : (entry as any)?.name)).filter((entry): entry is string => typeof entry === "string");
+
+  const levelUpFeats = selectedFeatNames.length ? await prisma.feats.findMany({ where: { name: { in: selectedFeatNames } } }) : [];
   const spells = character.spells.map(({ spell }) => ({ ...spell }));
-  return { ...character, spells, levelUpFeats };
+
+  return { ...character, selectedFeats, rawImportData, spells, levelUpFeats };
 }
 
 export async function toggleCharacterInventoryEquipped(userId: string, characterId: string, inventoryItemId: string) {
@@ -349,12 +370,8 @@ export async function createCharacterFromFoundry(userId: string, rawJson: unknow
   const getScore = (key: string) => abilities[key]?.value ?? 10;
   const getMod = (score: number) => Math.floor((score - 10) / 2);
 
-  const [strength, dexterity, constitution, intelligence, wisdom, charisma] = [
-    getScore("str"), getScore("dex"), getScore("con"),
-    getScore("int"), getScore("wis"), getScore("cha")
-  ];
+  const [strength, dexterity, constitution, intelligence, wisdom, charisma] = [getScore("str"), getScore("dex"), getScore("con"), getScore("int"), getScore("wis"), getScore("cha")];
 
-  // Gestion des sorts avec unicité garantie pour éviter les conflits Prisma
   const spellConnectionsMap = new Map<string, { spellId: string; prepared: boolean; learned: boolean }>();
 
   for (const s of parsed.extractedSpells) {
@@ -386,6 +403,43 @@ export async function createCharacterFromFoundry(userId: string, rawJson: unknow
     spellConnectionsMap.set(spell.id, { spellId: spell.id, prepared: true, learned: true });
   }
 
+  const inventoryConnections = [];
+  for (const invItem of parsed.extractedItems) {
+    const cleanItemName = invItem.name.trim();
+    let eqItem = await prisma.equipmentItem.findFirst({
+      where: { name: { equals: cleanItemName, mode: "insensitive" } },
+      select: { id: true },
+    });
+
+    if (!eqItem) {
+      eqItem = await prisma.equipmentItem.create({
+        data: {
+          slug: `foundry-${cleanItemName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`,
+          name: cleanItemName,
+          category: invItem.type || "loot",
+          type: invItem.type === "weapon" ? "WEAPON" : invItem.type === "equipment" ? "ARMOR" : "GEAR",
+          description: invItem.description || cleanItemName,
+          costGp: invItem.price || 0,
+          weightLb: invItem.weight || 0,
+        },
+        select: { id: true },
+      });
+    }
+
+    inventoryConnections.push({
+      itemId: eqItem.id,
+      quantity: invItem.quantity,
+      isEquipped: invItem.equipped,
+    });
+  }
+
+  const formattedFeats = parsed.extractedFeats.map((feat) => ({
+    name: feat.name ?? "Inconnu",
+    description: feat.description ?? "",
+    requirements: feat.requirements ?? null,
+    featureType: feat.featureType ?? "feat",
+  }));
+
   return prisma.character.create({
     data: {
       userId,
@@ -395,13 +449,19 @@ export async function createCharacterFromFoundry(userId: string, rawJson: unknow
       class: parsed.class,
       subclass: parsed.subclass,
       level: parsed.level,
+      backstory: parsed.backstory,
       foundryActorId: parsed.foundryActorId,
       foundryVersion: parsed.foundryVersion,
       rawImportData: parsed.rawImportData,
       stats: parsed.stats,
       themeKey: "warrior",
       notebookTheme: "parchment",
-      strength, dexterity, constitution, intelligence, wisdom, charisma,
+      strength,
+      dexterity,
+      constitution,
+      intelligence,
+      wisdom,
+      charisma,
       strengthMod: getMod(strength),
       dexterityMod: getMod(dexterity),
       constitutionMod: getMod(constitution),
@@ -411,7 +471,19 @@ export async function createCharacterFromFoundry(userId: string, rawJson: unknow
       currentHitPoints: (parsed.stats.hitPoints as any)?.current ?? 10,
       maxHitPoints: (parsed.stats.hitPoints as any)?.max ?? 10,
       armorClass: (parsed.stats.armorClass as number) ?? 10,
+      selectedFeats: formattedFeats as Prisma.InputJsonValue,
       spells: spellConnectionsMap.size > 0 ? { create: Array.from(spellConnectionsMap.values()) } : undefined,
+      inventoryItems: inventoryConnections.length > 0 ? { create: inventoryConnections } : undefined,
     },
+  });
+}
+
+export async function updateCharacterTheme(userId: string, characterId: string, data: { themeKey?: string; notebookTheme?: string }) {
+  const character = await prisma.character.findFirst({ where: { id: characterId, userId }, select: { id: true } });
+  if (!character) throw new Error("Character not found");
+
+  return prisma.character.update({
+    where: { id: characterId },
+    data,
   });
 }
