@@ -1,6 +1,6 @@
 "use client";
 
-import { themeStyle } from "@/styles/dnd-themes";
+import { themeStyle, type DndThemeKey } from "@/styles/dnd-themes";
 import {
   CharacterHeader,
   CharacterStats,
@@ -22,7 +22,6 @@ import {
 import { CollapsibleSection } from "./sheet/CollapsibleSection";
 import { useCharacterSheet } from "./sheet/useCharacterSheet";
 
-// Ré-exporte les types pour la compatibilité avec les pages parentes
 export type { CharacterSheetUpdateData, CharacterLevelUpData };
 
 type CharacterSheetProps = {
@@ -36,16 +35,13 @@ type CharacterSheetProps = {
 export function CharacterSheet({ character, onSave, onLevelUp, onToggleEquip }: CharacterSheetProps) {
   const sheet = useCharacterSheet(character, onSave, onLevelUp, onToggleEquip);
 
-  // Fonction pour gérer le changement de thème avec sauvegarde optionnelle si onSave est dispo
-// Fonction pour gérer le changement de thème avec persistance
   const handleThemeChange = async (newTheme: string) => {
-    const themeValue = newTheme as "artificer" | "barbarian" | "bard" | "cleric" | "dark" | "druid" | "fighter";
+    const themeValue = newTheme as DndThemeKey;
     
     sheet.setTheme(themeValue);
     
     if (onSave) {
       try {
-        // On envoie 'themeKey' car c'est le nom exact de la colonne dans le modèle Character de Prisma
         await onSave({ themeKey: themeValue } as any);
       } catch (err) {
         console.error("Erreur lors de la sauvegarde du thème", err);
@@ -141,7 +137,7 @@ export function CharacterSheet({ character, onSave, onLevelUp, onToggleEquip }: 
             ["biography", "Biographie"],
           ].map(([val, label]) => (
             <button
-              key={val}
+              key={`tab-${val}`}
               type="button"
               onClick={() => sheet.setActiveTab(val as typeof sheet.activeTab)}
               className="rounded px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-colors"
@@ -168,6 +164,7 @@ export function CharacterSheet({ character, onSave, onLevelUp, onToggleEquip }: 
             setDraftSpells={sheet.setDraftSpells}
             slots={sheet.slots}
             setSlots={sheet.setSlots}
+            availableSpells={sheet.availableSpells}
           />
         )}
 
@@ -180,6 +177,7 @@ export function CharacterSheet({ character, onSave, onLevelUp, onToggleEquip }: 
             newFeat={sheet.newFeat}
             setNewFeat={sheet.setNewFeat}
             classFeaturesAtLevel={sheet.classFeaturesAtLevel}
+            availableFeats={sheet.availableFeats}
           />
         )}
 

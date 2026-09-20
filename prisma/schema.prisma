@@ -135,7 +135,7 @@ model SourceBook {
   classes          DndClass[]
   subclasses       DndSubclass[]
   spells           Spell[]
-  feats            Feat[]
+  feats            Feats[]
   classFeatures    ClassFeature[]
   skillDefinitions SkillDefinition[]
   equipment        EquipmentItem[]
@@ -356,7 +356,7 @@ model Background {
   skillProficiencies Json        @default("[]") @map("skill_proficiencies")
   toolProficiencies  Json        @default("[]") @map("tool_proficiencies")
   startingEquipment  Json        @default("[]") @map("starting_equipment")
-  originFeat         Feat?       @relation(fields: [originFeatId], references: [id], onDelete: SetNull)
+  originFeat         Feats?       @relation(fields: [originFeatId], references: [id], onDelete: SetNull)
   characters         Character[]
   sourceBookId       String?     @map("source_book_id")
   sourceBook         SourceBook? @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
@@ -464,7 +464,7 @@ model Spell {
   @@map("spells")
 }
 
-model Feat {
+model Feats {
   id               String       @id @default(cuid())
   slug             String       @unique
   name             String

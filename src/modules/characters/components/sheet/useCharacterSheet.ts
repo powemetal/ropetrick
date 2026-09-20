@@ -38,9 +38,10 @@ import {
   fetchSubclassesForClass,
   fetchAvailableFeats,
   fetchSpellsForLevelUp,
+  fetchAvailableSpells,
 } from "@/modules/characters/server/subclass-service";
 
-const validThemes = new Set<DndThemeKey>([
+const VALID_THEMES = new Set<DndThemeKey>([
   "light", "dark", "barbarian", "bard", "cleric", "druid", "fighter",
   "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard", "artificer",
 ]);
@@ -51,14 +52,17 @@ const SPELLCASTER_KEYWORDS = [
   "druide", "druid", "paladin", "rôdeur", "ranger", "artificier", "artificer",
 ];
 
+const LOCAL_STORAGE_KEY = "dnd_sheet_collapsed_sections";
+
 export function useCharacterSheet(
   character: CharacterSheetViewCharacter,
   onSave?: (data: CharacterSheetUpdateData) => Promise<void>,
   onLevelUp?: (data: CharacterLevelUpData) => Promise<void>,
   onToggleEquip?: (inventoryItemId: string) => Promise<void>
 ) {
-  const scores = { ...defaultScores, ...character.abilityScores };
-  const initialTheme = character.themeKey && validThemes.has(character.themeKey as DndThemeKey)
+  const scores = useMemo(() => ({ ...defaultScores, ...character.abilityScores }), [character.abilityScores]);
+  
+  const initialTheme = character.themeKey && VALID_THEMES.has(character.themeKey as DndThemeKey)
     ? (character.themeKey as DndThemeKey)
     : "light";
 
@@ -68,9 +72,12 @@ export function useCharacterSheet(
   const [draftClass, setDraftClass] = useState(character.className ?? "");
   const [draftSubclass, setDraftSubclass] = useState(character.subclassName ?? "");
   const [draftScores, setDraftScores] = useState<AbilityScores>(scores);
+  const [availableSpells, setAvailableSpells] = useState<any[]>([]);
+  
   const [proficiencies, setProficiencies] = useState<Partial<Record<Skill, SkillProficiency>>>(
     character.skillProficiencies ?? {}
   );
+  
   const [hitPoints, setHitPoints] = useState(character.currentHitPoints ?? character.maxHitPoints ?? 1);
   const [temporaryHitPoints, setTemporaryHitPoints] = useState(character.temporaryHitPoints ?? 0);
   const [hitDice, setHitDice] = useState(character.level);
@@ -78,32 +85,36 @@ export function useCharacterSheet(
   const [slots, setSlots] = useState([4, 3, 2, 0, 0, 0, 0, 0, 0]);
   const [activeTab, setActiveTab] = useState<"spellbook" | "feats" | "inventory" | "biography">("spellbook");
 
-  // Initialisation neutre pour éviter l'erreur d'hydratation SSR / Client
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     stats: false,
     skills: false,
     details: false,
   });
 
-  // Chargement différé du localStorage après le montage client
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem("dnd_sheet_collapsed_sections");
-        if (saved) {
-          setCollapsed(JSON.parse(saved));
-        }
-      } catch (e) {
-        console.error(e);
+    if (typeof window === "undefined") return;
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        setCollapsed(JSON.parse(saved));
       }
+    } catch (e) {
+      console.error("Erreur de lecture du localStorage:", e);
     }
   }, []);
 
   useEffect(() => {
+  fetchAvailableSpells()
+    .then((data) => setAvailableSpells(data ?? []))
+    .catch(() => setAvailableSpells([]));
+}, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     try {
-      localStorage.setItem("dnd_sheet_collapsed_sections", JSON.stringify(collapsed));
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(collapsed));
     } catch (e) {
-      console.error(e);
+      console.error("Erreur d'écriture dans le localStorage:", e);
     }
   }, [collapsed]);
 
@@ -111,8 +122,8 @@ export function useCharacterSheet(
     setCollapsed((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const [draftSpells, setDraftSpells] = useState<CharacterSpellEntry[]>(
-    (character.spells ?? []).map((s: any) => {
+  const initialSpells: CharacterSpellEntry[] = useMemo(() => {
+    return (character.spells ?? []).map((s: any) => {
       const data = s.spell ?? s;
       return {
         id: data.id,
@@ -125,9 +136,17 @@ export function useCharacterSheet(
         concentration: data.concentration,
         description: data.description,
       };
-    })
-  );
-  const [draftFeats, setDraftFeats] = useState<CharacterFeatEntry[]>(character.feats ?? []);
+    });
+  }, [character.spells]);
+
+  const [draftSpells, setDraftSpells] = useState<CharacterSpellEntry[]>(initialSpells);
+  
+  const initialFeats: CharacterFeatEntry[] = useMemo(() => {
+    const raw = (character as any).selectedFeats ?? (character as any).feats ?? [];
+    return Array.isArray(raw) ? raw : [];
+  }, [character]);
+
+  const [draftFeats, setDraftFeats] = useState<CharacterFeatEntry[]>(initialFeats);
   const [draftInventory, setDraftInventory] = useState<CharacterInventoryEntry[]>(character.inventoryItems ?? []);
 
   const [newSpell, setNewSpell] = useState<CharacterNewSpellState>({
@@ -140,7 +159,9 @@ export function useCharacterSheet(
     concentration: false,
     description: "",
   });
+  
   const [newFeat, setNewFeat] = useState<CharacterNewFeatState>({ name: "", category: "GENERAL", description: "" });
+  
   const [newItem, setNewItem] = useState<CharacterNewItemState>({
     name: "",
     category: "Équipement d'aventure",
@@ -169,7 +190,6 @@ export function useCharacterSheet(
     platinumPieces: character.platinumPieces ?? 0,
   });
 
-  // Modal LevelUp
   const [levelModal, setLevelModal] = useState(false);
   const [hitPointMethod, setHitPointMethod] = useState<"AVERAGE" | "ROLL">("AVERAGE");
   const [abilityIncrease, setAbilityIncrease] = useState<Partial<Record<Ability, number>>>({});
@@ -182,6 +202,13 @@ export function useCharacterSheet(
   const [availableLevelUpSpells, setAvailableLevelUpSpells] = useState<LevelUpSpellOption[]>([]);
   const [selectedSpellIds, setSelectedSpellIds] = useState<string[]>([]);
 
+  // Chargement global des dons de la BDD pour la feuille et le modal
+  useEffect(() => {
+    fetchAvailableFeats()
+      .then((data) => setAvailableFeats((data ?? []) as LevelUpFeatOption[]))
+      .catch(() => setAvailableFeats([]));
+  }, []);
+
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [equipPendingId, setEquipPendingId] = useState<string | null>(null);
@@ -192,6 +219,7 @@ export function useCharacterSheet(
     (character as any).subclass?.name ||
     draftSubclass
   );
+  
   const targetLevel = character.level + 1;
   const maxSpellLevel = Math.min(9, Math.ceil(targetLevel / 2));
 
@@ -199,19 +227,6 @@ export function useCharacterSheet(
     const c = (character.className ?? "").toLowerCase();
     return Boolean(character.dndClass?.spellcastingAbility) || SPELLCASTER_KEYWORDS.some((k) => c.includes(k));
   }, [character.dndClass, character.className]);
-
-  const spellSelectionCount = useMemo(() => {
-    if (!isSpellcaster) return 0;
-    const c = (character.className ?? "").toLowerCase();
-    if (c.includes("magicien") || c.includes("wizard")) return 2;
-    if (
-      c.includes("ensorceleur") || c.includes("sorcerer") ||
-      c.includes("barde") || c.includes("bard") ||
-      c.includes("occultiste") || c.includes("warlock") ||
-      c.includes("rôdeur") || c.includes("ranger")
-    ) return 1;
-    return 0;
-  }, [isSpellcaster, character.className]);
 
   useEffect(() => {
     if (!levelModal || !character.className) return;
@@ -221,10 +236,6 @@ export function useCharacterSheet(
         .then((data) => setAvailableSubclasses((data ?? []) as SubclassOption[]))
         .catch(() => setAvailableSubclasses([]));
     }
-
-    fetchAvailableFeats()
-      .then((data) => setAvailableFeats((data ?? []) as LevelUpFeatOption[]))
-      .catch(() => setAvailableFeats([]));
 
     if (isSpellcaster) {
       fetchSpellsForLevelUp(character.className, targetLevel)
@@ -236,31 +247,35 @@ export function useCharacterSheet(
   const displayedScores = editing ? draftScores : scores;
   const skillBonuses = calculateSkillBonuses(displayedScores, proficiencies, character.level);
   const maxHitPoints = character.maxHitPoints ?? 1;
+  
   const abilityForSpellcasting: Ability = character.dndClass?.spellcastingAbility
     ? (character.dndClass.spellcastingAbility.toLowerCase() as Ability)
     : "intelligence";
+    
   const spellcastingModifier = calculateModifier(displayedScores[abilityForSpellcasting] ?? 10);
   const spellSaveDc = calculateSpellSaveDc(spellcastingModifier, character.level);
   const spellAttackBonus = calculateSpellAttackBonus(spellcastingModifier, character.level);
 
-  const activeSpells: CharacterSpellEntry[] = editing
-    ? draftSpells
-    : (character.spells ?? []).map((s: any) => (s.spell ?? s) as CharacterSpellEntry);
-  const cantrips = activeSpells.filter((s) => s.level === 0);
-  const leveledSpells = activeSpells
-    .filter((s) => s.level > 0)
-    .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+  const activeSpells = editing ? draftSpells : initialSpells;
+  const cantrips = useMemo(() => activeSpells.filter((s) => s.level === 0), [activeSpells]);
+  const leveledSpells = useMemo(
+    () => activeSpells.filter((s) => s.level > 0).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
+    [activeSpells]
+  );
 
-  const activeFeats = editing ? draftFeats : (character.feats ?? []);
+  const activeFeats = editing ? draftFeats : initialFeats;
   const activeInventory = editing ? draftInventory : (character.inventoryItems ?? []);
+
   const classFeaturesAtLevel = useMemo(
     () => (character.dndClass?.classFeatures ?? []).filter((f: { level: number }) => f.level <= character.level),
     [character.dndClass, character.level]
   );
+
   const legalAsiLevels = useMemo(
     () => [...asiLevelsForClass(character.className)] as number[],
     [character.className]
   );
+
   const multiclassEligibility = useMemo(
     () => getMulticlassEligibility(character.className, newClassName || null, displayedScores),
     [character.className, newClassName, displayedScores]
@@ -355,6 +370,19 @@ export function useCharacterSheet(
     });
   };
 
+  const spellSelectionCount = useMemo(() => {
+    if (!isSpellcaster) return 0;
+    const c = (character.className ?? "").toLowerCase();
+    if (c.includes("magicien") || c.includes("wizard")) return 2;
+    if (
+      c.includes("ensorceleur") || c.includes("sorcerer") ||
+      c.includes("barde") || c.includes("bard") ||
+      c.includes("occultiste") || c.includes("warlock") ||
+      c.includes("rôdeur") || c.includes("ranger")
+    ) return 1;
+    return 0;
+  }, [isSpellcaster, character.className]);
+
   return {
     theme, setTheme,
     editing, setEditing,
@@ -387,9 +415,11 @@ export function useCharacterSheet(
     subclassId, setSubclassId,
     newClassName, setNewClassName,
     availableSubclasses, availableFeats, availableLevelUpSpells,
-    spellSelectionCount, maxSpellLevel,
+    maxSpellLevel,
+    spellSelectionCount,
     selectedSpellIds, setSelectedSpellIds,
     multiclassEligibility, legalAsiLevels, hasSubclass,
     confirmLevelUp,
+    availableSpells,
   };
 }
