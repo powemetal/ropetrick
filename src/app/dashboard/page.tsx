@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getCharactersByUser } from "@/modules/characters/server/character-service";
 import { getCampaignsByUser } from "@/modules/campaigns/server/campaign-service";
 import { getCampaignSchedule } from "@/modules/scheduling/server/scheduling-service";
+import { CharacterCard } from "@/modules/characters/components/CharacterCard";
 import {
   DashboardCalendar,
   type CalendarEventItem,
@@ -110,7 +111,7 @@ export default async function DashboardPage() {
         >
           Mes personnages
         </h2>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
+        <div className="mt-4 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {characters.length === 0 ? (
             <p
               className="text-sm italic"
@@ -120,28 +121,7 @@ export default async function DashboardPage() {
             </p>
           ) : (
             characters.map((character: any) => (
-              <Link
-                key={character.id}
-                href={`/characters/${character.id}`}
-                className="group rounded-xl border p-5 transition-all hover:scale-[1.01]"
-                style={{
-                  borderColor: "var(--dnd-accent-soft)",
-                  background: "var(--dnd-surface)",
-                }}
-              >
-                <h3
-                  className="font-bold transition-colors group-hover:opacity-80"
-                  style={{ color: "var(--dnd-ink)" }}
-                >
-                  {character.name}
-                </h3>
-                <p
-                  className="mt-1 text-xs"
-                  style={{ color: "var(--dnd-muted)" }}
-                >
-                  Niveau {character.level} · {character.className ?? character.class ?? "Classe non assignée"}
-                </p>
-              </Link>
+              <CharacterCard key={character.id} character={character} />
             ))
           )}
         </div>
