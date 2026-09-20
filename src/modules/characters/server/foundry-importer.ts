@@ -8,6 +8,7 @@ const foundryActorSchema = z
     img: z.string().optional(),
     system: z.record(z.string(), z.unknown()),
     flags: z.record(z.string(), z.unknown()).optional(),
+    items: z.array(z.record(z.string(), z.unknown())).optional(),
   })
   .passthrough();
 
@@ -24,6 +25,15 @@ export type ParsedFoundryCharacter = {
   foundryActorId: string | null;
   foundryVersion: string | null;
   rawImportData: Prisma.InputJsonValue;
+  extractedSpells: Array<{
+    name: string;
+    level: number;
+    school: string;
+    castingTime: string;
+    range: string;
+    description: string;
+    concentration: boolean;
+  }>;
 };
 
 const asRecord = (value: unknown): JsonRecord => (typeof value === "object" && value !== null && !Array.isArray(value) ? (value as JsonRecord) : {});
@@ -46,36 +56,87 @@ const numberAt = (record: JsonRecord, ...keys: string[]) => {
 
 const firstText = (...values: (string | null)[]) => values.find(Boolean) ?? null;
 
-const extractClassData = (system: JsonRecord) => {
-  const classes = asRecord(system.classes);
-  const firstClass = Object.values(classes).find((value) => typeof value === "object");
-  const classRecord = asRecord(firstClass);
-  const subclass = firstText(textAt(classRecord, "subclass"), textAt(classRecord, "subclassName"));
+function cleanHtmlDescription(html: string | null): string {
+  if (!html) return "";
 
-  return {
-    className: firstText(textAt(system, "details", "class", "name"), textAt(system, "details", "class"), textAt(classRecord, "name")),
-    subclass,
-  };
-};
-
-const extractItems = (rawActor: JsonRecord): Prisma.InputJsonArray => {
-  const items = Array.isArray(rawActor.items) ? rawActor.items : [];
-  return items.map((item) => {
-    const itemRecord = asRecord(item);
-    const itemSystem = asRecord(itemRecord.system);
-    return {
-      name: typeof itemRecord.name === "string" ? itemRecord.name : "Unnamed item",
-      type: typeof itemRecord.type === "string" ? itemRecord.type : null,
-      quantity: numberAt(itemSystem, "quantity") ?? 1,
-      equipped: itemSystem.equipped === true,
-    };
-  });
-};
+  return html
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<br\s*[\/]?>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/@(?:Item|JournalEntry|Actor|RollTable|Compendium|UUID|config|embed|variantrule|spell|creature|action|feat)\[([^|\]]+)(?:\|[^\]]+)*\]/g, "$1")
+    .replace(/\[\[\/damage\s+([0-9d+\s-]+)(?:\s+type=([a-z]+))?\]\]/gi, "$1 $2")
+    .replace(/\[\[\/[a-z]+\s+([^\]]+)\]\]/gi, "$1")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter((line) => line.length > 0)
+    .join("\n");
+}
 
 export function parseFoundryActor(rawJson: unknown): ParsedFoundryCharacter {
   const actor = foundryActorSchema.parse(rawJson);
   const system = actor.system;
-  const classData = extractClassData(system);
+  const items = actor.items ?? [];
+
+  let className: string | null = null;
+  let subclass: string | null = null;
+  let calculatedLevel = 0;
+
+  const classItem = items.find((item) => item.type === "class");
+  if (classItem) {
+    className = typeof classItem.name === "string" ? classItem.name : null;
+    const classSystem = asRecord(classItem.system);
+    calculatedLevel = numberAt(classSystem, "levels") ?? 1;
+    subclass = firstText(textAt(classSystem, "subclass"), textAt(classSystem, "subclassName"));
+  }
+
+  if (!className) {
+    className = firstText(
+      textAt(system, "details", "class", "name"),
+      textAt(system, "details", "class"),
+      textAt(asRecord(system.classes), "name")
+    );
+  }
+
+  const level = numberAt(system, "details", "level") ?? calculatedLevel ?? 1;
+
+  const race = firstText(
+    textAt(system, "details", "race", "name"),
+    textAt(system, "details", "race")
+  );
+
+  const inventory: any[] = [];
+  const extractedSpells: ParsedFoundryCharacter["extractedSpells"] = [];
+
+  for (const item of items) {
+    const itemRecord = asRecord(item);
+    const itemSystem = asRecord(itemRecord.system);
+    const currentItemType = typeof itemRecord.type === "string" ? itemRecord.type : null;
+
+    if (currentItemType === "spell") {
+      extractedSpells.push({
+        name: typeof itemRecord.name === "string" ? itemRecord.name : "Sort inconnu",
+        level: numberAt(itemSystem, "level") ?? 0,
+        school: textAt(itemSystem, "school") ?? "universal",
+        castingTime: textAt(itemSystem, "activation", "type") ?? "action",
+        range: textAt(itemSystem, "range", "units") ?? "self",
+        description: cleanHtmlDescription(textAt(itemSystem, "description", "value")),
+        concentration: Array.isArray(itemSystem.properties) && itemSystem.properties.includes("concentration"),
+      });
+    } else if (["weapon", "equipment", "tool", "loot", "consumable", "shield"].includes(currentItemType ?? "")) {
+      inventory.push({
+        name: typeof itemRecord.name === "string" ? itemRecord.name : "Objet",
+        type: currentItemType,
+        quantity: numberAt(itemSystem, "quantity") ?? 1,
+        equipped: itemSystem.equipped === true,
+      });
+    }
+  }
+
   const attributes = asRecord(system.attributes);
   const hitPoints = {
     current: numberAt(system, "attributes", "hp", "value"),
@@ -85,22 +146,24 @@ export function parseFoundryActor(rawJson: unknown): ParsedFoundryCharacter {
   const stats: Prisma.InputJsonObject = {
     abilities: asRecord(system.abilities) as Prisma.InputJsonObject,
     hitPoints,
-    armorClass: numberAt(system, "attributes", "ac", "value") ?? numberAt(system, "attributes", "ac"),
-    speed: attributes.movement ?? attributes.speed ?? null,
-    inventory: extractItems(actor as JsonRecord),
+    armorClass: numberAt(system, "attributes", "ac", "value") ?? numberAt(system, "attributes", "ac") ?? 10,
+    speed: (attributes.movement as Prisma.InputJsonValue) ?? (attributes.speed as Prisma.InputJsonValue) ?? null,
+    inventory: inventory as unknown as Prisma.InputJsonValue,
   };
 
   const rawImportData = actor as unknown as Prisma.InputJsonValue;
+
   return {
     name: actor.name,
     avatarUrl: actor.img ?? null,
-    race: firstText(textAt(system, "details", "race", "name"), textAt(system, "details", "race")),
-    class: classData.className,
-    subclass: classData.subclass,
-    level: numberAt(system, "details", "level") ?? 1,
+    race,
+    class: className,
+    subclass,
+    level,
     stats,
     foundryActorId: actor._id ?? null,
-    foundryVersion: textAt(actor.flags ?? {}, "core", "version"),
+    foundryVersion: textAt(actor.flags ?? {}, "core", "version") ?? textAt(actor, "_stats", "systemVersion"),
     rawImportData,
+    extractedSpells,
   };
 }

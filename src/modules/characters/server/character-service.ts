@@ -163,6 +163,7 @@ export async function updateCharacter(userId: string, characterId: string, data:
         charismaMod: calculateModifier(input.charisma),
         skillProficiencies: input.skillProficiencies,
         themeKey: input.themeKey,
+        notebookTheme: (input as any).notebookTheme,
         copperPieces: input.copperPieces,
         silverPieces: input.silverPieces,
         electrumPieces: input.electrumPieces,
@@ -268,14 +269,9 @@ export async function levelUpCharacter(userId: string, characterId: string, data
   });
 }
 
+// Redirige correctement vers la logique complète d'importation
 export async function importFoundryCharacter(userId: string, rawJson: unknown) {
-  const parsedCharacter = parseFoundryActor(rawJson);
-  return prisma.character.create({
-    data: {
-      ...parsedCharacter,
-      userId,
-    },
-  });
+  return createCharacterFromFoundry(userId, rawJson);
 }
 
 export async function getCharactersByUser(userId: string) {
@@ -344,4 +340,78 @@ export async function replaceCharacterAvatar(characterId: string, userId: string
   if (!character) throw new Error("Character not found");
   await deleteStorageObject(character.avatarUrl);
   return prisma.character.update({ where: { id: characterId }, data: { avatarUrl } });
+}
+
+export async function createCharacterFromFoundry(userId: string, rawJson: unknown) {
+  const parsed = parseFoundryActor(rawJson);
+
+  const abilities = (parsed.stats.abilities as Record<string, any>) || {};
+  const getScore = (key: string) => abilities[key]?.value ?? 10;
+  const getMod = (score: number) => Math.floor((score - 10) / 2);
+
+  const [strength, dexterity, constitution, intelligence, wisdom, charisma] = [
+    getScore("str"), getScore("dex"), getScore("con"),
+    getScore("int"), getScore("wis"), getScore("cha")
+  ];
+
+  // Gestion des sorts avec unicité garantie pour éviter les conflits Prisma
+  const spellConnectionsMap = new Map<string, { spellId: string; prepared: boolean; learned: boolean }>();
+
+  for (const s of parsed.extractedSpells) {
+    const cleanName = s.name.trim();
+    let spell = await prisma.spell.findFirst({
+      where: { name: { equals: cleanName, mode: "insensitive" } },
+      select: { id: true },
+    });
+
+    if (!spell) {
+      spell = await prisma.spell.create({
+        data: {
+          slug: `custom-${cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`,
+          name: cleanName,
+          level: s.level,
+          school: s.school || "universal",
+          castingTime: s.castingTime || "action",
+          range: s.range || "self",
+          components: { v: true, s: true },
+          duration: "Instantanée",
+          concentration: s.concentration,
+          description: s.description || "Sort importé de Foundry VTT.",
+          source: "Foundry Import",
+        },
+        select: { id: true },
+      });
+    }
+
+    spellConnectionsMap.set(spell.id, { spellId: spell.id, prepared: true, learned: true });
+  }
+
+  return prisma.character.create({
+    data: {
+      userId,
+      name: parsed.name,
+      avatarUrl: parsed.avatarUrl,
+      race: parsed.race,
+      class: parsed.class,
+      subclass: parsed.subclass,
+      level: parsed.level,
+      foundryActorId: parsed.foundryActorId,
+      foundryVersion: parsed.foundryVersion,
+      rawImportData: parsed.rawImportData,
+      stats: parsed.stats,
+      themeKey: "warrior",
+      notebookTheme: "parchment",
+      strength, dexterity, constitution, intelligence, wisdom, charisma,
+      strengthMod: getMod(strength),
+      dexterityMod: getMod(dexterity),
+      constitutionMod: getMod(constitution),
+      intelligenceMod: getMod(intelligence),
+      wisdomMod: getMod(wisdom),
+      charismaMod: getMod(charisma),
+      currentHitPoints: (parsed.stats.hitPoints as any)?.current ?? 10,
+      maxHitPoints: (parsed.stats.hitPoints as any)?.max ?? 10,
+      armorClass: (parsed.stats.armorClass as number) ?? 10,
+      spells: spellConnectionsMap.size > 0 ? { create: Array.from(spellConnectionsMap.values()) } : undefined,
+    },
+  });
 }

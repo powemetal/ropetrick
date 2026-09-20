@@ -73,6 +73,28 @@ function parseStringList(raw?: string | null): string[] {
   return Array.from(resultSet).sort();
 }
 
+// Fonction de nettoyage injectée pour purifier le HTML et les balises du CSV
+function cleanHtmlDescription(html: string | null): string {
+  if (!html) return "";
+
+  return html
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<br\s*[\/]?>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/@(?:Item|JournalEntry|Actor|RollTable|Compendium|UUID|config|embed|variantrule|spell|creature|action|feat)\[([^\vert{}\]]+)(?:\|[^\]]+)*\]/g, "$1")
+    .replace(/\[\[\/damage\s+([0-9d+\s-]+)(?:\s+type=([a-z]+))?\]\]/gi, "$1 $2")
+    .replace(/\[\[\/[a-z]+\s+([^\]]+)\]\]/gi, "$1")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter((line) => line.length > 0)
+    .join("\n");
+}
+
 async function main() {
   const csvFilePath = path.join(__dirname, "data/Spells.csv");
 
@@ -113,7 +135,7 @@ async function main() {
     sourceBookMap.set(rawSource, book.id);
   }
 
-  // 2. Préparation des données
+  // 2. Préparation des données avec application du nettoyage
   const usedSlugs = new Set<string>();
 
   const spellsData = records.map((r: any) => {
@@ -149,8 +171,9 @@ async function main() {
       duration: r["Duration"]?.trim() || "Instantaneous",
       concentration: isConcentration,
       ritual: isRitual,
-      description: r["Text"]?.trim() || "",
-      higherLevels: r["At Higher Levels"]?.trim() || null,
+      // Nettoyage appliqué ici :
+      description: cleanHtmlDescription(r["Text"]),
+      higherLevels: cleanHtmlDescription(r["At Higher Levels"]) || null,
       classes: parseStringList(r["Classes"]),
       optionalClasses: parseStringList(r["Optional/Variant Classes"]),
       subclasses: parseStringList(r["Subclasses"]),
@@ -163,7 +186,7 @@ async function main() {
   await prisma.spell.deleteMany();
 
   // 4. Réinsertion complète par paquets de 100
-  console.log("⚡ Remplacement et insertion des 1 045 sorts...");
+  console.log("⚡ Remplacement et insertion des 1 045 sorts nettoyés...");
   const chunkSize = 100;
   let count = 0;
 
@@ -176,7 +199,7 @@ async function main() {
     console.log(`-> ${count} / ${spellsData.length} sorts insérés...`);
   }
 
-  console.log("✅ Table des sorts vidée et réimportée avec succès !");
+  console.log("✅ Table des sorts réimportée et nettoyée avec succès !");
 }
 
 main()

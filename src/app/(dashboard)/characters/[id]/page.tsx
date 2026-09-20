@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { CharacterNotebookView } from "@/modules/characters/components/CharacterNotebookView";
+import { CharacterNotebookView, type NotebookTheme } from "@/modules/characters/components/CharacterNotebookView";
 import { CharacterSheet } from "@/modules/characters/components/CharacterSheet";
 import { DeleteCharacterButton } from "@/modules/characters/components/DeleteCharacterButton";
 import { deleteCharacter, fetchAvailableFeats, fetchAvailableLevelUpSpells, getCharacterById, getSkillDefinitions, levelUpCharacter, toggleCharacterInventoryEquipped, updateCharacter } from "@/modules/characters/server/character-service";
@@ -50,6 +50,34 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
     if (!currentUserId) redirect("/sign-in");
     await updateCharacter(currentUserId, id, data);
     revalidatePath(`/characters/${id}`);
+  }
+
+  // Action serveur pour persister le thème du carnet de notes
+  async function updateNotebookThemeAction(newTheme: NotebookTheme) {
+    "use server";
+    const { userId: currentUserId } = await auth();
+    if (!currentUserId) return { ok: false, message: "Session expirée." };
+
+    const existingCharacter = await getCharacterById(id, currentUserId);
+    if (!existingCharacter) return { ok: false, message: "Personnage introuvable." };
+
+    await updateCharacter(currentUserId, id, {
+      name: existingCharacter.name,
+      class: existingCharacter.class,
+      subclass: existingCharacter.subclass,
+      strength: existingCharacter.strength,
+      dexterity: existingCharacter.dexterity,
+      constitution: existingCharacter.constitution,
+      intelligence: existingCharacter.intelligence,
+      wisdom: existingCharacter.wisdom,
+      charisma: existingCharacter.charisma,
+      skillProficiencies: (existingCharacter.skillProficiencies as any) ?? {},
+      themeKey: existingCharacter.themeKey ?? "light",
+      notebookTheme: newTheme,
+    });
+
+    revalidatePath(`/characters/${id}`);
+    return { ok: true, message: "Reliure mise à jour." };
   }
 
   async function levelUpAction(data: CharacterLevelUpData) {
@@ -116,56 +144,54 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
 
       <div className="mt-8">
         <CharacterSheet
-          characterId={id}
-          character={{
-            name: character.name,
-            className: character.class,
-            subclassName: character.dndSubclass?.name ?? character.subclass,
-            level: character.level,
-            abilityScores: {
-              strength: character.strength,
-              dexterity: character.dexterity,
-              constitution: character.constitution,
-              intelligence: character.intelligence,
-              wisdom: character.wisdom,
-              charisma: character.charisma,
-            },
-            currentHitPoints: character.currentHitPoints,
-            maxHitPoints: character.maxHitPoints,
-            temporaryHitPoints: character.temporaryHitPoints,
-            armorClass: character.armorClass,
-            initiative: character.initiative,
-            speed: character.speed,
-            hitDie: character.hitDie,
-            themeKey: character.themeKey,
-            copperPieces: character.copperPieces,
-            silverPieces: character.silverPieces,
-            electrumPieces: character.electrumPieces,
-            goldPieces: character.goldPieces,
-            platinumPieces: character.platinumPieces,
-            personalityTraits: character.personalityTraits,
-            ideals: character.ideals,
-            bonds: character.bonds,
-            flaws: character.flaws,
-            appearance: character.appearance,
-            backstory: character.backstory,
-            alliesOrganizations: character.alliesOrganizations,
-            spells: character.spells,
-            inventoryItems: character.inventoryItems,
-            dndClass: character.dndClass,
-            dndSubclass: character.dndSubclass,
-            subclassId: character.subclassId,
-            originFeat: character.background?.originFeat ?? null,
-            feats: character.levelUpFeats,
-            skillDefinitions,
-            skillProficiencies: (character.skillProficiencies ?? {}) as Record<string, "NONE" | "PROFICIENT" | "EXPERTISE">,
-          }}
-          onSave={updateCharacterAction}
-          onLevelUp={levelUpAction}
-          onToggleEquip={toggleEquipAction}
-          availableFeats={availableFeats}
-          availableSpells={availableSpells}
-        />
+  characterId={id}
+  character={{
+    name: character.name,
+    className: character.class,
+    subclassName: character.dndSubclass?.name ?? character.subclass,
+    level: character.level,
+    abilityScores: {
+      strength: character.strength,
+      dexterity: character.dexterity,
+      constitution: character.constitution,
+      intelligence: character.intelligence,
+      wisdom: character.wisdom,
+      charisma: character.charisma,
+    },
+    currentHitPoints: character.currentHitPoints,
+    maxHitPoints: character.maxHitPoints,
+    temporaryHitPoints: character.temporaryHitPoints,
+    armorClass: character.armorClass,
+    initiative: character.initiative,
+    speed: character.speed,
+    hitDie: character.hitDie,
+    themeKey: character.themeKey,
+    copperPieces: character.copperPieces,
+    silverPieces: character.silverPieces,
+    electrumPieces: character.electrumPieces,
+    goldPieces: character.goldPieces,
+    platinumPieces: character.platinumPieces,
+    personalityTraits: character.personalityTraits,
+    ideals: character.ideals,
+    bonds: character.bonds,
+    flaws: character.flaws,
+    appearance: character.appearance,
+    backstory: character.backstory,
+    alliesOrganizations: character.alliesOrganizations,
+    spells: character.spells,
+    inventoryItems: character.inventoryItems,
+    dndClass: character.dndClass,
+    dndSubclass: character.dndSubclass,
+    subclassId: character.subclassId,
+    originFeat: character.background?.originFeat ?? null,
+    feats: character.levelUpFeats,
+    skillDefinitions,
+    skillProficiencies: (character.skillProficiencies ?? {}) as Record<string, "NONE" | "PROFICIENT" | "EXPERTISE">,
+  }}
+  onSave={updateCharacterAction}
+  onLevelUp={levelUpAction}
+  onToggleEquip={toggleEquipAction}
+/>
       </div>
       {character.campaignLinks.length > 0 && (
         <section className="mt-8 border-t border-stone-200 pt-6">
@@ -180,7 +206,15 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
         </section>
       )}
 
-      <CharacterNotebookView notebooks={character.notebooks} createNoteAction={createNoteAction} updateNoteAction={updateNoteAction} deleteNoteAction={deleteNoteAction} />
+      <CharacterNotebookView
+        characterId={id}
+        initialTheme={character.notebookTheme}
+        notebooks={character.notebooks}
+        createNoteAction={createNoteAction}
+        updateNoteAction={updateNoteAction}
+        deleteNoteAction={deleteNoteAction}
+        onSaveTheme={updateNotebookThemeAction}
+      />
     </main>
   );
 }
