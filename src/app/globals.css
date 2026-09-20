@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+:root {
+  --background: #111113;
+  --foreground: #f8f3e7;
+  --theme-background: #111113;
+  --theme-surface: #1d1d20;
+  --theme-ink: #f8f3e7;
+  --theme-muted: #b9ae9d;
+  --theme-accent: #f5c451;
+  --theme-accent-soft: #4b3a18;
+}
+
+:root[data-theme="light-parchment"] {
+  --theme-background: #f4ede2;
+  --theme-surface: #fffaf0;
+  --theme-ink: #2b1d0c;
+  --theme-muted: #725d43;
+  --theme-accent: #8b5a2b;
+  --theme-accent-soft: #ead9bd;
+}
+:root[data-theme="dark-dungeon"] {
+  --theme-background: #111113;
+  --theme-surface: #1d1d20;
+  --theme-ink: #f8f3e7;
+  --theme-muted: #b9ae9d;
+  --theme-accent: #f5c451;
+  --theme-accent-soft: #4b3a18;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--theme-background);
+  color: var(--theme-ink);
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading), serif;
+}
+:root[data-theme] body {
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--theme-accent) 4%, transparent) 1px, transparent 1px), linear-gradient(var(--theme-background), var(--theme-background));
+  background-size:
+    32px 32px,
+    auto;
+}

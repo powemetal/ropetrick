@@ -1,0 +1,39 @@
+# Spécification : Flux Dédié de Création & Mode Verrouillage de Feuille
+
+## 1. Flux de Création Dédié (Page distincte sans formulaire brut)
+- **Point d'entrée (`/characters`)** :
+  - Remplacer tout formulaire en ligne ou champs bruts par un bouton d'action principal bien en évidence : **"Créer un nouveau personnage"** (avec option secondaire d'import Foundry VTT).
+  - Ce bouton redirige vers une route dédiée : `/characters/new`.
+- **Page de Création Dédiée (`/characters/new`)** :
+  - Interface plein écran / modale immersive guidée exclusivement par le `CharacterWizard`.
+  - Connexion complète de l'étape finale du Wizard à la Server Action `createCharacter`.
+  - Dès la validation finale : redirection automatique vers la feuille officielle nouvellement générée (`/characters/[characterId]`) avec notification toast de succès.
+
+## 2. États de Verrouillage de la Feuille d'Aventure (`CharacterSheet`)
+Par défaut, la feuille d'aventure est en **lecture seule / mode jeu vivant** afin d'éviter toute altération accidentelle des règles fondamentales.
+
+### A. Champs Verrouillés en Permanence (Hors Édition / Level Up)
+- Nom, espèce, historique, classe, sous-classe.
+- Caractéristiques de base (FOR, DEX, CON, INT, SAG, CHA).
+- Sauvegardes maîtrisées et compétences (cases à cocher désactivées).
+- Bonus de maîtrise, CA de base, vitesse.
+
+### B. Éléments Interactifs Constamment Disponibles (En Jeu)
+- Ajustement des PV actuels et temporaires (+ / -).
+- Dépense / récupération des dés de vie.
+- Coche des emplacements de sorts consommés.
+- Coche de l'inspiration héroïque et des sauvegardes contre la mort.
+
+### C. Exception 1 : Mode "Édition Manuelle"
+- Présence d'un bouton à bascule **"Modifier la fiche"** (icône de cadenas / crayon) en haut de la feuille.
+- Lorsqu'activé :
+  - Déverrouille les champs textuels, les scores d'attributs et le choix des compétences.
+  - Affiche un bouton de sauvegarde persistant qui appelle `updateCharacter`.
+
+### D. Exception 2 : Mode "Passage de Niveau" (Level Up Modal / Wizard)
+- Présence d'un bouton dédié **"Niveau supérieur"** (ex: Niveau 1 -> Niveau 2).
+- Ouvre un assistant ciblé :
+  - Choix du gain de PV (tirage du dé de vie ou valeur moyenne).
+  - Déblocage des aptitudes de classe du niveau atteint.
+  - Choix d'un don ou augmentation de caractéristiques (+2 ou +1/+1) aux niveaux prévus (4, 8, 12, etc.).
+  - Nouveaux emplacements et sélection de nouveaux sorts connus/préparés.

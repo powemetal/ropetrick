@@ -1,0 +1,12 @@
+# Next.js build cache
+.next/
+out/
+dist/
+build/
+
+# Fichiers d'environnement et secrets
+.env
+.env*.local
+.env.production
+.env.development
+node_modules
