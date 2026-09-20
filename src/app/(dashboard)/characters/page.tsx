@@ -1,3 +1,4 @@
+// @/app/characters/page.tsx
 import Link from "next/link";
 import { CharacterCard } from "@/modules/characters/components/CharacterCard";
 import { getCharactersByUser } from "@/modules/characters/server/character-service";
@@ -17,17 +18,35 @@ export default async function CharactersPage() {
   const characters = await getCharactersByUser(user.id);
 
   return (
-    <main className="mx-auto min-h-screen max-w-6xl space-y-12 px-6 py-12">
-      {/* En-tête modernisé */}
-      <header className="flex flex-col gap-6 border-b border-stone-200/80 pb-8 sm:flex-row sm:items-end sm:justify-between">
+    <main
+      className="mx-auto min-h-screen max-w-6xl space-y-10 px-6 py-12 transition-colors"
+      style={{
+        color: "var(--dnd-ink)",
+        backgroundColor: "var(--dnd-background)",
+      }}
+    >
+      {/* En-tête avec adaptation dynamique basée sur le thème global */}
+      <header
+        className="flex flex-col gap-6 border-b pb-8 sm:flex-row sm:items-end sm:justify-between"
+        style={{ borderColor: "var(--dnd-accent-soft)" }}
+      >
         <div>
-          <span className="inline-block text-xs font-semibold uppercase tracking-[0.25em] text-amber-700">
-            Rope Trick
+          <span
+            className="inline-block text-xs font-extrabold uppercase tracking-[0.3em]"
+            style={{ color: "var(--dnd-accent)" }}
+          >
+            {user.name ?? "Aventurier"}
           </span>
-          <h1 className="mt-2 text-4xl font-bold tracking-tight text-stone-900">
+          <h1
+            className="mt-1 text-4xl font-extrabold tracking-tight drop-shadow-sm"
+            style={{ color: "var(--dnd-ink)" }}
+          >
             Mes personnages
           </h1>
-          <p className="mt-1 text-stone-600">
+          <p
+            className="mt-2 font-medium text-sm"
+            style={{ color: "var(--dnd-muted)" }}
+          >
             Vos fiches, vos aventures et vos notes de table en un seul endroit.
           </p>
         </div>
@@ -36,7 +55,11 @@ export default async function CharactersPage() {
         <div className="flex flex-wrap items-center gap-3">
           <Link
             href="/characters/new"
-            className="inline-flex items-center justify-center rounded-none bg-stone-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-900 focus:ring-offset-2"
+            className="inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-bold shadow-md transition-all hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-offset-2"
+            style={{
+              backgroundColor: "var(--dnd-ink)",
+              color: "var(--dnd-background)",
+            }}
           >
             Créer un personnage
           </Link>
@@ -48,28 +71,59 @@ export default async function CharactersPage() {
       {/* Section de la liste des personnages */}
       <section className="space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-semibold tracking-tight text-stone-900">
-            Fiches <span className="text-stone-400 font-normal text-lg">({characters.length})</span>
+          <h2
+            className="text-2xl font-bold tracking-tight flex items-center gap-2"
+            style={{ color: "var(--dnd-ink)" }}
+          >
+            <span>Fiches</span> 
+            <span
+              className="inline-flex items-center justify-center rounded-lg px-2.5 py-0.5 text-sm font-black border shadow-sm"
+              style={{
+                backgroundColor: "var(--dnd-surface)",
+                borderColor: "var(--dnd-accent-soft)",
+                color: "var(--dnd-accent)",
+              }}
+            >
+              {characters.length}
+            </span>
           </h2>
         </div>
 
         {characters.length === 0 ? (
-          <div className="rounded-none border border-dashed border-stone-300 bg-white p-10 text-center">
-            <h3 className="text-lg font-medium text-stone-900">Aucun personnage pour l'instant</h3>
-            <p className="mt-1 text-sm text-stone-500">
+          <div
+            className="rounded-2xl border-2 border-dashed p-12 text-center shadow-inner"
+            style={{
+              borderColor: "var(--dnd-accent-soft)",
+              backgroundColor: "var(--dnd-surface)",
+            }}
+          >
+            <h3
+              className="text-xl font-bold"
+              style={{ color: "var(--dnd-ink)" }}
+            >
+              Aucun personnage pour l'instant
+            </h3>
+            <p
+              className="mt-2 text-sm max-w-md mx-auto"
+              style={{ color: "var(--dnd-muted)" }}
+            >
               Commencez par créer une fiche manuellement ou importez directement votre acteur Foundry VTT (.json).
             </p>
             <div className="mt-6 flex justify-center gap-3">
               <Link
                 href="/characters/new"
-                className="inline-flex items-center rounded-none bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800"
+                className="inline-flex items-center rounded-xl px-5 py-2.5 text-sm font-bold shadow hover:opacity-90"
+                style={{
+                  backgroundColor: "var(--dnd-ink)",
+                  color: "var(--dnd-background)",
+                }}
               >
                 Créer un personnage
               </Link>
             </div>
           </div>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 grid-cols-2">
             {characters.map((character) => (
               <CharacterCard key={character.id} character={character} />
             ))}
