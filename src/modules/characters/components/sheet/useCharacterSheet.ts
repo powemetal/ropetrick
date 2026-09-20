@@ -78,17 +78,26 @@ export function useCharacterSheet(
   const [slots, setSlots] = useState([4, 3, 2, 0, 0, 0, 0, 0, 0]);
   const [activeTab, setActiveTab] = useState<"spellbook" | "feats" | "inventory" | "biography">("spellbook");
 
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
+  // Initialisation neutre pour éviter l'erreur d'hydratation SSR / Client
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
+    stats: false,
+    skills: false,
+    details: false,
+  });
+
+  // Chargement différé du localStorage après le montage client
+  useEffect(() => {
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem("dnd_sheet_collapsed_sections");
-        if (saved) return JSON.parse(saved);
+        if (saved) {
+          setCollapsed(JSON.parse(saved));
+        }
       } catch (e) {
         console.error(e);
       }
     }
-    return { stats: false, skills: false, details: false };
-  });
+  }, []);
 
   useEffect(() => {
     try {
@@ -291,6 +300,7 @@ export function useCharacterSheet(
           ...draftScores,
           skillProficiencies: proficiencies,
           themeKey: theme,
+          notebookTheme: theme,
           ...wealth,
           ...biography,
           spells: draftSpells,

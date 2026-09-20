@@ -180,7 +180,8 @@ export type CharacterSheetUpdateData = {
   wisdom: number;
   charisma: number;
   skillProficiencies: Partial<Record<Skill, SkillProficiency>>;
-  themeKey: string;
+  themeKey?: string;
+  notebookTheme?: string;
   copperPieces?: number;
   silverPieces?: number;
   electrumPieces?: number;

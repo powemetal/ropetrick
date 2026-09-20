@@ -36,6 +36,23 @@ type CharacterSheetProps = {
 export function CharacterSheet({ character, onSave, onLevelUp, onToggleEquip }: CharacterSheetProps) {
   const sheet = useCharacterSheet(character, onSave, onLevelUp, onToggleEquip);
 
+  // Fonction pour gérer le changement de thème avec sauvegarde optionnelle si onSave est dispo
+// Fonction pour gérer le changement de thème avec persistance
+  const handleThemeChange = async (newTheme: string) => {
+    const themeValue = newTheme as "artificer" | "barbarian" | "bard" | "cleric" | "dark" | "druid" | "fighter";
+    
+    sheet.setTheme(themeValue);
+    
+    if (onSave) {
+      try {
+        // On envoie 'themeKey' car c'est le nom exact de la colonne dans le modèle Character de Prisma
+        await onSave({ themeKey: themeValue } as any);
+      } catch (err) {
+        console.error("Erreur lors de la sauvegarde du thème", err);
+      }
+    }
+  };
+
   return (
     <section
       className="rounded-xl border p-4 shadow-lg sm:p-6"
@@ -56,7 +73,7 @@ export function CharacterSheet({ character, onSave, onLevelUp, onToggleEquip }: 
         draftSubclass={sheet.draftSubclass}
         setDraftSubclass={sheet.setDraftSubclass}
         theme={sheet.theme}
-        setTheme={sheet.setTheme}
+        setTheme={handleThemeChange}
         onOpenLevelModal={onLevelUp ? () => sheet.setLevelModal(true) : undefined}
         onToggleEditing={onSave ? () => sheet.setEditing((c) => !c) : undefined}
       />

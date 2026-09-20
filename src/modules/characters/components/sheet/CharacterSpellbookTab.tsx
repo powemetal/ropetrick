@@ -57,18 +57,22 @@ export function CharacterSpellbookTab({
     return map;
   }, [leveledSpells]);
 
-  // Rétraction (collapsible) avec mémoire localStorage
-  const [collapsedLevels, setCollapsedLevels] = useState<Record<string, boolean>>(() => {
+  // Initialisation neutre pour éviter l'erreur d'hydratation SSR / Client
+  const [collapsedLevels, setCollapsedLevels] = useState<Record<string, boolean>>({});
+
+  // Chargement différé du localStorage après le montage client
+  useEffect(() => {
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem("dnd_sheet_collapsed_spell_levels");
-        if (saved) return JSON.parse(saved);
+        if (saved) {
+          setCollapsedLevels(JSON.parse(saved));
+        }
       } catch (e) {
         console.error(e);
       }
     }
-    return {};
-  });
+  }, []);
 
   useEffect(() => {
     try {
@@ -166,7 +170,7 @@ export function CharacterSpellbookTab({
         </div>
       )}
 
-      {/* 4. Section Collapsible : Tours de Magie (affiché uniquement s'il y a des tours de magie ou en édition) */}
+      {/* 4. Section Collapsible : Tours de Magie */}
       {(normalizedCantrips.length > 0 || editing) && (
         <div
           className="overflow-hidden rounded-lg border transition-all duration-150 hover:border-[var(--dnd-accent)]"
@@ -218,7 +222,7 @@ export function CharacterSpellbookTab({
         </div>
       )}
 
-      {/* 5. Sections Collapsibles : Sorts par niveau (affiché UNIQUEMENT si le niveau contient au moins un sort) */}
+      {/* 5. Sections Collapsibles : Sorts par niveau */}
       <div className="mt-4 space-y-3">
         {Array.from({ length: 9 }, (_, index) => {
           const level = index + 1;
@@ -226,7 +230,6 @@ export function CharacterSpellbookTab({
           const slotTotal = slots[index] ?? 0;
           const isCollapsed = collapsedLevels[`level-${level}`] ?? false;
 
-          // RÈGLE : Ne rien afficher si le niveau n'a AUCUN sort (sauf si on est en train d'éditer)
           if (spells.length === 0 && !editing) {
             return null;
           }
