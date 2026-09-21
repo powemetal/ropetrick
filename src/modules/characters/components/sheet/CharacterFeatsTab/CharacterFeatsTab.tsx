@@ -42,9 +42,6 @@ export function CharacterFeatsTab({
   availableFeats = [],
   onDeleteFeat 
 }: CharacterFeatsTabProps) {
-  console.log("DEBUG CHARACTER OBJECT:", character);
-  console.log("DEBUG ACTIVE FEATS:", activeFeats);
-  console.log("DEBUG RAW IMPORTED FEATS:", character.feats || character.selectedFeats);
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({});
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
@@ -81,11 +78,10 @@ export function CharacterFeatsTab({
   const handleDeleteItem = (uniqueKey: string, featItem: any) => {
     setDeletedKeys((prev) => ({ ...prev, [uniqueKey]: true }));
 
-    setDraftFeats((current) => current.filter((feat, idx) => {
-      const generatedKey = `acquired-${feat.id ?? idx}`;
-      const racialKey = `racial-${feat.id ?? idx}`;
-      const classKey = `class-trait-${feat.id ?? idx}`;
-      return generatedKey !== uniqueKey && racialKey !== uniqueKey && classKey !== uniqueKey;
+    // Filtrage propre basé sur l'ID ou le nom exact pour éviter les suppressions en cascade
+    setDraftFeats((current) => current.filter((feat) => {
+      const featId = feat.id ?? feat.name;
+      return !uniqueKey.includes(String(featId));
     }));
 
     if (onDeleteFeat) {
@@ -93,27 +89,32 @@ export function CharacterFeatsTab({
     }
   };
 
-  const rawImportedFeats = Array.isArray(character.feats) 
-    ? character.feats 
-    : (Array.isArray(character.selectedFeats) ? character.selectedFeats : []);
+  // Source unique et propre : activeFeats (qui contient déjà l'état initial fusionné)
+  const sourceFeats = Array.isArray(activeFeats) ? activeFeats : [];
 
-  const racialTraits = [
-    ...rawImportedFeats.filter((f: any) => f.featureType === "race"),
-    ...activeFeats.filter((f: any) => f.featureType === "race")
-  ].filter((f: any, idx) => !deletedKeys[`racial-${f.id ?? idx}`]);
+  const racialTraits = sourceFeats
+    .filter((f: any) => f.featureType === "race")
+    .filter((f: any) => {
+      const key = `racial-${f.id ?? f.name}`;
+      return !deletedKeys[key];
+    });
 
-  const classTraitsFromImport = [
-    ...rawImportedFeats.filter((f: any) => f.featureType === "class"),
-    ...activeFeats.filter((f: any) => f.featureType === "class")
-  ].filter((f: any, idx) => !deletedKeys[`class-trait-${f.id ?? idx}`]);
+  const classTraitsFromImport = sourceFeats
+    .filter((f: any) => f.featureType === "class")
+    .filter((f: any) => {
+      const key = `class-trait-${f.id ?? f.name}`;
+      return !deletedKeys[key];
+    });
 
-  const standardImportedFeats = [
-    ...rawImportedFeats.filter((f: any) => !f.featureType || f.featureType === "feat"),
-    ...activeFeats.filter((f: any) => !f.featureType || f.featureType === "feat")
-  ].filter((f: any, idx) => !deletedKeys[`acquired-${f.id ?? idx}`]);
+  const standardImportedFeats = sourceFeats
+    .filter((f: any) => !f.featureType || f.featureType === "feat")
+    .filter((f: any) => {
+      const key = `acquired-${f.id ?? f.name}`;
+      return !deletedKeys[key];
+    });
 
   const filteredRacialTraits = racialTraits.filter((t: any) => t.name.toLowerCase().includes(racialSearch.toLowerCase()));
-  console.log("ALL RAW IMPORTED FEATS:", rawImportedFeats)
+  
   const matchesOriginSearch = character.originFeat && !deletedKeys["origin-feat"] && (
     character.originFeat.name.toLowerCase().includes(originSearch.toLowerCase()) || 
     (character.originFeat.description && character.originFeat.description.toLowerCase().includes(originSearch.toLowerCase()))
@@ -163,8 +164,8 @@ export function CharacterFeatsTab({
                   style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}
                 />
               )}
-              {filteredRacialTraits.map((trait: any, idx: number) => {
-                const uniqueKey = `racial-${trait.id ?? idx}`;
+              {filteredRacialTraits.map((trait: any) => {
+                const uniqueKey = `racial-${trait.id ?? trait.name}`;
                 return (
                   <SubtileFeatCard 
                     key={uniqueKey} 
@@ -235,8 +236,8 @@ export function CharacterFeatsTab({
                   style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}
                 />
               )}
-              {filteredAcquiredFeats.map((featEntry, idx) => {
-                const uniqueKey = `acquired-${featEntry.id ?? idx}`;
+              {filteredAcquiredFeats.map((featEntry) => {
+                const uniqueKey = `acquired-${featEntry.id ?? featEntry.name}`;
                 return (
                   <SubtileFeatCard 
                     key={uniqueKey} 
@@ -277,8 +278,8 @@ export function CharacterFeatsTab({
                   style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}
                 />
               )}
-              {filteredClassTraits.map((feat: any, idx: number) => {
-                const uniqueKey = `class-trait-${feat.id ?? idx}`;
+              {filteredClassTraits.map((feat: any) => {
+                const uniqueKey = `class-trait-${feat.id ?? feat.name}`;
                 return (
                   <SubtileFeatCard 
                     key={uniqueKey} 
