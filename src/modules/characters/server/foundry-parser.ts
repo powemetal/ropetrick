@@ -111,19 +111,12 @@ export function parseFoundryActor(rawJson: unknown): ParsedFoundryCharacter {
   }
 
   if (!className) {
-    className = firstText(
-      textAt(system, "details", "class", "name"),
-      textAt(system, "details", "class"),
-      textAt(asRecord(system.classes), "name")
-    );
+    className = firstText(textAt(system, "details", "class", "name"), textAt(system, "details", "class"), textAt(asRecord(system.classes), "name"));
   }
 
   const level = numberAt(system, "details", "level") || calculatedLevel || 1;
 
-  const race = firstText(
-    textAt(system, "details", "race", "name"),
-    textAt(system, "details", "race")
-  );
+  const race = firstText(textAt(system, "details", "race", "name"), textAt(system, "details", "race"));
 
   const rawBiography = textAt(system, "details", "biography", "value");
   const backstory = rawBiography ? cleanHtmlDescription(rawBiography) : null;
@@ -142,6 +135,9 @@ export function parseFoundryActor(rawJson: unknown): ParsedFoundryCharacter {
     const itemSysTypeObj = asRecord(itemSystem.type);
     const itemSysTypeValue = typeof itemSysTypeObj.value === "string" ? itemSysTypeObj.value : null;
     const itemSubtypeValue = typeof itemSysTypeObj.subtype === "string" ? itemSysTypeObj.subtype : null;
+    const itemFlags = asRecord(itemRecord.flags);
+    const plutoniumFlags = asRecord(itemFlags.plutonium);
+    const dnd5eFlags = asRecord(itemFlags.dnd5e);
 
     if (currentItemType === "spell") {
       extractedSpells.push({
@@ -153,28 +149,12 @@ export function parseFoundryActor(rawJson: unknown): ParsedFoundryCharacter {
         description: itemDesc,
         concentration: Array.isArray(itemSystem.properties) && itemSystem.properties.includes("concentration"),
       });
-    } else if (
-      currentItemType === "feat" || 
-      currentItemType === "race" || 
-      currentItemType === "class" ||
-      currentItemType === "subclass" ||
-      itemSysTypeValue === "race" || 
-      itemSysTypeValue === "class" ||
-      itemSysTypeValue === "subclass" ||
-      itemSysTypeValue === "feat"
-    ) {
+    } else if (currentItemType === "feat" || currentItemType === "race" || currentItemType === "class" || currentItemType === "subclass" || itemSysTypeValue === "race" || itemSysTypeValue === "class" || itemSysTypeValue === "subclass" || itemSysTypeValue === "feat") {
       // Détermination propre du type pour le tri dans l'UI (inclut désormais les sous-classes)
       let resolvedFeatureType = "feat";
       if (itemSysTypeValue === "race" || currentItemType === "race") {
         resolvedFeatureType = "race";
-      } else if (
-        itemSysTypeValue === "class" || 
-        currentItemType === "class" || 
-        currentItemType === "subclass" ||
-        currentItemType === "subclass" ||
-        itemSubtypeValue === "class" ||
-        currentItemType === "subclass"
-      ) {
+      } else if (itemSysTypeValue === "class" || currentItemType === "class" || currentItemType === "subclass" || currentItemType === "subclass" || itemSubtypeValue === "class" || currentItemType === "subclass" || plutoniumFlags.page === "classFeature" || dnd5eFlags.isClassFeatureVariant === true) {
         resolvedFeatureType = "class";
       } else if (itemSubtypeValue === "origin" || itemSubtypeValue === "fightingStyle") {
         resolvedFeatureType = "feat";

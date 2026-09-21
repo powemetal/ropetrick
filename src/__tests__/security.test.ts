@@ -23,7 +23,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 import { getCampaignDetails } from "@/modules/campaigns/server/campaign-service";
-import { parseFoundryActor } from "@/modules/characters/server/foundry-importer";
+import { parseFoundryActor } from "@/modules/characters/server/foundry-parser";
 import { updateUserStatus } from "@/modules/users/server/admin-service";
 import { AdminAuthorizationError } from "@/modules/users/server/admin-types";
 import { getLoreDirectory } from "@/modules/lore/server/lore-service";

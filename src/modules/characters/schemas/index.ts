@@ -49,21 +49,26 @@ export const CharacterCreateSchema = CharacterSchema.omit({
 });
 
 export const CharacterSheetUpdateSchema = z.object({
-  name: z.string().min(1),
-  class: z.string().nullable(),
-  subclass: z.string().nullable(),
-  strength: z.number().int().min(1).max(30),
-  dexterity: z.number().int().min(1).max(30),
-  constitution: z.number().int().min(1).max(30),
-  intelligence: z.number().int().min(1).max(30),
-  wisdom: z.number().int().min(1).max(30),
-  charisma: z.number().int().min(1).max(30),
-  skillProficiencies: z.record(z.string(), z.enum(["NONE", "PROFICIENT", "EXPERTISE"])),
+  name: z.string().min(1).optional(),
+  class: z.string().nullable().optional(),
+  subclass: z.string().nullable().optional(),
+  strength: z.number().int().min(1).max(30).optional(),
+  dexterity: z.number().int().min(1).max(30).optional(),
+  constitution: z.number().int().min(1).max(30).optional(),
+  intelligence: z.number().int().min(1).max(30).optional(),
+  wisdom: z.number().int().min(1).max(30).optional(),
+  charisma: z.number().int().min(1).max(30).optional(),
+  skillProficiencies: z.record(z.string(), z.enum(["NONE", "PROFICIENT", "EXPERTISE"])).optional(),
   themeKey: z.string().min(1).optional(),
   notebookTheme: z.string().min(1).optional(),
   copperPieces: z.number().int().min(0).optional(),
   silverPieces: z.number().int().min(0).optional(),
   electrumPieces: z.number().int().min(0).optional(),
+  
+  // On s'assure qu'on n'accepte que les tableaux valides (et on peut ignorer les tableaux vides s'ils ne sont pas intentionnels)
+  feats: z.array(z.any()).optional(),
+  selectedFeats: z.array(z.any()).optional(),
+  
   goldPieces: z.number().int().min(0).optional(),
   platinumPieces: z.number().int().min(0).optional(),
   personalityTraits: z.string().nullable().optional(),

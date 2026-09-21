@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { CharacterNotebookView, type NotebookTheme } from "@/modules/characters/components/CharacterNotebookView";
 import { CharacterSheet } from "@/modules/characters/components/CharacterSheet";
 import { DeleteCharacterButton } from "@/modules/characters/components/DeleteCharacterButton";
-import { deleteCharacter, fetchAvailableFeats, fetchAvailableLevelUpSpells, getCharacterById, getSkillDefinitions, levelUpCharacter, toggleCharacterInventoryEquipped, updateCharacter, replaceCharacterAvatar } from "@/modules/characters/server/character-service";
+import { deleteCharacter, fetchAvailableFeats, fetchAvailableLevelUpSpells, getCharacterById, getSkillDefinitions, levelUpCharacter, toggleCharacterInventoryEquipped, updateCharacter, updateCharacterTheme, replaceCharacterAvatar } from "@/modules/characters/server/character-service";
 import type { CharacterLevelUpData, CharacterSheetUpdateData } from "@/modules/characters/components/CharacterSheet";
 import { createNote, deleteNoteAction, updateNoteAction } from "@/modules/characters/server/notebook-service";
 import { uploadCharacterAvatar, getAvatarSignedUrl } from "@/lib/storage";
@@ -49,18 +49,41 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
     return { ok: true, message: "Note enregistrée." };
   }
 
-async function updateCharacterAction(data: CharacterSheetUpdateData) {
+  async function updateCharacterAction(data: CharacterSheetUpdateData) {
     "use server";
     const { userId: currentUserId } = await auth();
     if (!currentUserId) redirect("/sign-in");
-    
-    // On fusionne les données reçues de la feuille avec les feats modifiés par l'utilisateur
+
+    // Récupération du personnage actuel en BDD pour comparer / fusionner proprement
+    const existingCharacter = await getCharacterById(id, currentUserId);
+    if (!existingCharacter) return;
+
+    const incomingFeats = (data as any).feats;
+
+    if (data.themeKey && incomingFeats === undefined) {
+      console.warn("[Character update] theme-only update detected in general save, preserving selectedFeats", {
+        characterId: id,
+        selectedFeatsCount: Array.isArray(existingCharacter.selectedFeats) ? existingCharacter.selectedFeats.length : 0,
+      });
+    }
+
+    // On s'assure de ne injecter/écraser les feats que s'ils sont explicitement fournis sous forme de tableau valide
     const payload = {
       ...data,
-      feats: (data as any).feats ?? [],
+      ...(Array.isArray(incomingFeats) ? { feats: incomingFeats } : {}),
     };
 
     await updateCharacter(currentUserId, id, payload);
+    revalidatePath(`/characters/${id}`);
+  }
+
+  // Action dédiée et sécurisée pour le changement de thème de la feuille (évite d'effacer les dons)
+  async function updateThemeAction(themeKey: string) {
+    "use server";
+    const { userId: currentUserId } = await auth();
+    if (!currentUserId) redirect("/sign-in");
+
+    await updateCharacterTheme(currentUserId, id, { themeKey });
     revalidatePath(`/characters/${id}`);
   }
 
@@ -140,18 +163,11 @@ async function updateCharacterAction(data: CharacterSheetUpdateData) {
         backgroundColor: "var(--dnd-background)",
       }}
     >
-      <Link
-        href="/characters"
-        className="inline-flex items-center gap-1.5 text-sm font-semibold transition-colors hover:opacity-80"
-        style={{ color: "var(--dnd-accent)" }}
-      >
+      <Link href="/characters" className="inline-flex items-center gap-1.5 text-sm font-semibold transition-colors hover:opacity-80" style={{ color: "var(--dnd-accent)" }}>
         <span>←</span> Retour aux personnages
       </Link>
 
-      <header
-        className="mt-8 flex flex-col gap-6 border-b pb-8 sm:flex-row sm:items-center sm:justify-between"
-        style={{ borderColor: "var(--dnd-accent-soft)" }}
-      >
+      <header className="mt-8 flex flex-col gap-6 border-b pb-8 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--dnd-accent-soft)" }}>
         <div className="flex items-center gap-5">
           {/* Avatar et formulaire d'upload sécurisé sans événement client */}
           <form action={uploadAvatarAction} className="flex items-center gap-3">
@@ -159,12 +175,7 @@ async function updateCharacterAction(data: CharacterSheetUpdateData) {
               <label htmlFor="avatar-upload" className="cursor-pointer block relative">
                 {avatarSignedUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={avatarSignedUrl}
-                    alt=""
-                    className="h-24 w-24 rounded-2xl object-cover shadow-lg border transition-opacity group-hover:opacity-75"
-                    style={{ borderColor: "var(--dnd-accent-soft)" }}
-                  />
+                  <img src={avatarSignedUrl} alt="" className="h-24 w-24 rounded-2xl object-cover shadow-lg border transition-opacity group-hover:opacity-75" style={{ borderColor: "var(--dnd-accent-soft)" }} />
                 ) : (
                   <div
                     className="flex h-24 w-24 items-center justify-center rounded-2xl text-4xl font-black shadow-lg border transition-opacity group-hover:opacity-75"
@@ -177,17 +188,9 @@ async function updateCharacterAction(data: CharacterSheetUpdateData) {
                     {character.name.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-bold">
-                  Choisir
-                </div>
+                <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-bold">Choisir</div>
               </label>
-              <input
-                id="avatar-upload"
-                name="avatar"
-                type="file"
-                accept="image/*"
-                className="hidden"
-              />
+              <input id="avatar-upload" name="avatar" type="file" accept="image/*" className="hidden" />
             </div>
             <button
               type="submit"
@@ -203,28 +206,14 @@ async function updateCharacterAction(data: CharacterSheetUpdateData) {
           </form>
 
           <div>
-            <p
-              className="text-xs font-extrabold uppercase tracking-[0.25em]"
-              style={{ color: "var(--dnd-accent)" }}
-            >
+            <p className="text-xs font-extrabold uppercase tracking-[0.25em]" style={{ color: "var(--dnd-accent)" }}>
               Fiche de personnage
             </p>
-            <h1
-              className="mt-1 text-4xl font-black tracking-tight drop-shadow-sm"
-              style={{ color: "var(--dnd-ink)" }}
-            >
+            <h1 className="mt-1 text-4xl font-black tracking-tight drop-shadow-sm" style={{ color: "var(--dnd-ink)" }}>
               {character.name}
             </h1>
-            <p
-              className="mt-2 font-bold"
-              style={{ color: "var(--dnd-ink)" }}
-            >
-              {character.race ?? "Race inconnue"}{" "}
-              <span style={{ color: "var(--dnd-accent)" }}>·</span>{" "}
-              {character.class ?? "Classe inconnue"}{" "}
-              <span style={{ color: "var(--dnd-accent)" }}>·</span>{" "}
-              {character.dndSubclass?.name ?? character.subclass ?? "Sous-classe inconnue"}{" "}
-              <span style={{ color: "var(--dnd-accent)" }}>·</span> Niveau {character.level}
+            <p className="mt-2 font-bold" style={{ color: "var(--dnd-ink)" }}>
+              {character.race ?? "Race inconnue"} <span style={{ color: "var(--dnd-accent)" }}>·</span> {character.class ?? "Classe inconnue"} <span style={{ color: "var(--dnd-accent)" }}>·</span> {character.dndSubclass?.name ?? character.subclass ?? "Sous-classe inconnue"} <span style={{ color: "var(--dnd-accent)" }}>·</span> Niveau {character.level}
             </p>
           </div>
         </div>
@@ -249,17 +238,10 @@ async function updateCharacterAction(data: CharacterSheetUpdateData) {
               background: "var(--dnd-surface)",
             }}
           >
-            <dt
-              className="text-xs font-bold uppercase tracking-wider"
-              style={{ color: "var(--dnd-muted)" }}
-            >
+            <dt className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--dnd-muted)" }}>
               {label}
             </dt>
-            <dd
-              className="mt-1.5 text-xl font-extrabold truncate"
-              style={{ color: "var(--dnd-ink)" }}
-              title={String(value)}
-            >
+            <dd className="mt-1.5 text-xl font-extrabold truncate" style={{ color: "var(--dnd-ink)" }} title={String(value)}>
               {value}
             </dd>
           </div>
@@ -308,29 +290,23 @@ async function updateCharacterAction(data: CharacterSheetUpdateData) {
             dndSubclass: character.dndSubclass,
             subclassId: character.subclassId,
             originFeat: character.background?.originFeat ?? null,
-            // CORRECTION : Fusion directe dans 'feats' acceptée par TypeScript et lue par le hook
-            feats: [
-              ...(Array.isArray(character.selectedFeats) ? character.selectedFeats : []),
-              ...(character.levelUpFeats ?? [])
-            ] as any,
+            rawImportData: character.rawImportData ?? null,
+            selectedFeats: (Array.isArray(character.selectedFeats) ? character.selectedFeats : []) as any[],
+            levelUpFeats: (character.levelUpFeats ?? []) as any[],
+            feats: [...(Array.isArray(character.selectedFeats) ? character.selectedFeats : []), ...(character.levelUpFeats ?? [])] as any,
             skillDefinitions,
             skillProficiencies: (character.skillProficiencies ?? {}) as Record<string, "NONE" | "PROFICIENT" | "EXPERTISE">,
           }}
           onSave={updateCharacterAction}
           onLevelUp={levelUpAction}
           onToggleEquip={toggleEquipAction}
+          onUpdateTheme={updateThemeAction}
         />
       </div>
 
       {character.campaignLinks.length > 0 && (
-        <section
-          className="mt-10 border-t pt-8"
-          style={{ borderColor: "var(--dnd-accent-soft)" }}
-        >
-          <h2
-            className="text-xl font-bold"
-            style={{ color: "var(--dnd-ink)" }}
-          >
+        <section className="mt-10 border-t pt-8" style={{ borderColor: "var(--dnd-accent-soft)" }}>
+          <h2 className="text-xl font-bold" style={{ color: "var(--dnd-ink)" }}>
             Campagnes associées
           </h2>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -353,15 +329,7 @@ async function updateCharacterAction(data: CharacterSheetUpdateData) {
       )}
 
       <div className="mt-12">
-        <CharacterNotebookView
-          characterId={id}
-          initialTheme={character.notebookTheme}
-          notebooks={character.notebooks}
-          createNoteAction={createNoteAction}
-          updateNoteAction={updateNoteAction}
-          deleteNoteAction={deleteNoteAction}
-          onSaveTheme={updateNotebookThemeAction}
-        />
+        <CharacterNotebookView characterId={id} initialTheme={character.notebookTheme} notebooks={character.notebooks} createNoteAction={createNoteAction} updateNoteAction={updateNoteAction} deleteNoteAction={deleteNoteAction} onSaveTheme={updateNotebookThemeAction} />
       </div>
     </main>
   );
