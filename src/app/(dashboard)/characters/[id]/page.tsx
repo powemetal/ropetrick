@@ -53,7 +53,7 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
     "use server";
     const { userId: currentUserId } = await auth();
     if (!currentUserId) redirect("/sign-in");
-    
+
     // Récupération du personnage actuel en BDD pour comparer / fusionner proprement
     const existingCharacter = await getCharacterById(id, currentUserId);
     if (!existingCharacter) return;
@@ -63,9 +63,7 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
     if (data.themeKey && incomingFeats === undefined) {
       console.warn("[Character update] theme-only update detected in general save, preserving selectedFeats", {
         characterId: id,
-        selectedFeatsCount: Array.isArray(existingCharacter.selectedFeats)
-          ? existingCharacter.selectedFeats.length
-          : 0,
+        selectedFeatsCount: Array.isArray(existingCharacter.selectedFeats) ? existingCharacter.selectedFeats.length : 0,
       });
     }
 
@@ -165,18 +163,11 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
         backgroundColor: "var(--dnd-background)",
       }}
     >
-      <Link
-        href="/characters"
-        className="inline-flex items-center gap-1.5 text-sm font-semibold transition-colors hover:opacity-80"
-        style={{ color: "var(--dnd-accent)" }}
-      >
+      <Link href="/characters" className="inline-flex items-center gap-1.5 text-sm font-semibold transition-colors hover:opacity-80" style={{ color: "var(--dnd-accent)" }}>
         <span>←</span> Retour aux personnages
       </Link>
 
-      <header
-        className="mt-8 flex flex-col gap-6 border-b pb-8 sm:flex-row sm:items-center sm:justify-between"
-        style={{ borderColor: "var(--dnd-accent-soft)" }}
-      >
+      <header className="mt-8 flex flex-col gap-6 border-b pb-8 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--dnd-accent-soft)" }}>
         <div className="flex items-center gap-5">
           {/* Avatar et formulaire d'upload sécurisé sans événement client */}
           <form action={uploadAvatarAction} className="flex items-center gap-3">
@@ -184,12 +175,7 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
               <label htmlFor="avatar-upload" className="cursor-pointer block relative">
                 {avatarSignedUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={avatarSignedUrl}
-                    alt=""
-                    className="h-24 w-24 rounded-2xl object-cover shadow-lg border transition-opacity group-hover:opacity-75"
-                    style={{ borderColor: "var(--dnd-accent-soft)" }}
-                  />
+                  <img src={avatarSignedUrl} alt="" className="h-24 w-24 rounded-2xl object-cover shadow-lg border transition-opacity group-hover:opacity-75" style={{ borderColor: "var(--dnd-accent-soft)" }} />
                 ) : (
                   <div
                     className="flex h-24 w-24 items-center justify-center rounded-2xl text-4xl font-black shadow-lg border transition-opacity group-hover:opacity-75"
@@ -202,17 +188,9 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
                     {character.name.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-bold">
-                  Choisir
-                </div>
+                <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-bold">Choisir</div>
               </label>
-              <input
-                id="avatar-upload"
-                name="avatar"
-                type="file"
-                accept="image/*"
-                className="hidden"
-              />
+              <input id="avatar-upload" name="avatar" type="file" accept="image/*" className="hidden" />
             </div>
             <button
               type="submit"
@@ -228,28 +206,14 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
           </form>
 
           <div>
-            <p
-              className="text-xs font-extrabold uppercase tracking-[0.25em]"
-              style={{ color: "var(--dnd-accent)" }}
-            >
+            <p className="text-xs font-extrabold uppercase tracking-[0.25em]" style={{ color: "var(--dnd-accent)" }}>
               Fiche de personnage
             </p>
-            <h1
-              className="mt-1 text-4xl font-black tracking-tight drop-shadow-sm"
-              style={{ color: "var(--dnd-ink)" }}
-            >
+            <h1 className="mt-1 text-4xl font-black tracking-tight drop-shadow-sm" style={{ color: "var(--dnd-ink)" }}>
               {character.name}
             </h1>
-            <p
-              className="mt-2 font-bold"
-              style={{ color: "var(--dnd-ink)" }}
-            >
-              {character.race ?? "Race inconnue"}{" "}
-              <span style={{ color: "var(--dnd-accent)" }}>·</span>{" "}
-              {character.class ?? "Classe inconnue"}{" "}
-              <span style={{ color: "var(--dnd-accent)" }}>·</span>{" "}
-              {character.dndSubclass?.name ?? character.subclass ?? "Sous-classe inconnue"}{" "}
-              <span style={{ color: "var(--dnd-accent)" }}>·</span> Niveau {character.level}
+            <p className="mt-2 font-bold" style={{ color: "var(--dnd-ink)" }}>
+              {character.race ?? "Race inconnue"} <span style={{ color: "var(--dnd-accent)" }}>·</span> {character.class ?? "Classe inconnue"} <span style={{ color: "var(--dnd-accent)" }}>·</span> {character.dndSubclass?.name ?? character.subclass ?? "Sous-classe inconnue"} <span style={{ color: "var(--dnd-accent)" }}>·</span> Niveau {character.level}
             </p>
           </div>
         </div>
@@ -274,17 +238,10 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
               background: "var(--dnd-surface)",
             }}
           >
-            <dt
-              className="text-xs font-bold uppercase tracking-wider"
-              style={{ color: "var(--dnd-muted)" }}
-            >
+            <dt className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--dnd-muted)" }}>
               {label}
             </dt>
-            <dd
-              className="mt-1.5 text-xl font-extrabold truncate"
-              style={{ color: "var(--dnd-ink)" }}
-              title={String(value)}
-            >
+            <dd className="mt-1.5 text-xl font-extrabold truncate" style={{ color: "var(--dnd-ink)" }} title={String(value)}>
               {value}
             </dd>
           </div>
@@ -333,10 +290,10 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
             dndSubclass: character.dndSubclass,
             subclassId: character.subclassId,
             originFeat: character.background?.originFeat ?? null,
-            feats: [
-              ...(Array.isArray(character.selectedFeats) ? character.selectedFeats : []),
-              ...(character.levelUpFeats ?? [])
-            ] as any,
+            rawImportData: character.rawImportData ?? null,
+            selectedFeats: (Array.isArray(character.selectedFeats) ? character.selectedFeats : []) as any[],
+            levelUpFeats: (character.levelUpFeats ?? []) as any[],
+            feats: [...(Array.isArray(character.selectedFeats) ? character.selectedFeats : []), ...(character.levelUpFeats ?? [])] as any,
             skillDefinitions,
             skillProficiencies: (character.skillProficiencies ?? {}) as Record<string, "NONE" | "PROFICIENT" | "EXPERTISE">,
           }}
@@ -348,14 +305,8 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
       </div>
 
       {character.campaignLinks.length > 0 && (
-        <section
-          className="mt-10 border-t pt-8"
-          style={{ borderColor: "var(--dnd-accent-soft)" }}
-        >
-          <h2
-            className="text-xl font-bold"
-            style={{ color: "var(--dnd-ink)" }}
-          >
+        <section className="mt-10 border-t pt-8" style={{ borderColor: "var(--dnd-accent-soft)" }}>
+          <h2 className="text-xl font-bold" style={{ color: "var(--dnd-ink)" }}>
             Campagnes associées
           </h2>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -378,15 +329,7 @@ export default async function CharacterDetailPage({ params }: CharacterDetailPag
       )}
 
       <div className="mt-12">
-        <CharacterNotebookView
-          characterId={id}
-          initialTheme={character.notebookTheme}
-          notebooks={character.notebooks}
-          createNoteAction={createNoteAction}
-          updateNoteAction={updateNoteAction}
-          deleteNoteAction={deleteNoteAction}
-          onSaveTheme={updateNotebookThemeAction}
-        />
+        <CharacterNotebookView characterId={id} initialTheme={character.notebookTheme} notebooks={character.notebooks} createNoteAction={createNoteAction} updateNoteAction={updateNoteAction} deleteNoteAction={deleteNoteAction} onSaveTheme={updateNotebookThemeAction} />
       </div>
     </main>
   );

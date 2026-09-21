@@ -26,9 +26,16 @@ export async function createCharacterFromFoundry(userId: string, rawJson: unknow
       spell = await prisma.spell.create({
         data: {
           slug: `custom-${cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`,
-          name: cleanName, level: s.level, school: s.school || "universal", castingTime: s.castingTime || "action",
-          range: s.range || "self", components: { v: true, s: true }, duration: "Instantanée",
-          concentration: s.concentration, description: s.description || "Sort importé de Foundry VTT.", source: "Foundry Import",
+          name: cleanName,
+          level: s.level,
+          school: s.school || "universal",
+          castingTime: s.castingTime || "action",
+          range: s.range || "self",
+          components: { v: true, s: true },
+          duration: "Instantanée",
+          concentration: s.concentration,
+          description: s.description || "Sort importé de Foundry VTT.",
+          source: "Foundry Import",
         },
         select: { id: true },
       });
@@ -45,9 +52,12 @@ export async function createCharacterFromFoundry(userId: string, rawJson: unknow
       eqItem = await prisma.equipmentItem.create({
         data: {
           slug: `foundry-${cleanItemName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`,
-          name: cleanItemName, category: invItem.type || "loot",
+          name: cleanItemName,
+          category: invItem.type || "loot",
           type: invItem.type === "weapon" ? "WEAPON" : invItem.type === "equipment" ? "ARMOR" : "GEAR",
-          description: invItem.description || cleanItemName, costGp: invItem.price || 0, weightLb: invItem.weight || 0,
+          description: invItem.description || cleanItemName,
+          costGp: invItem.price || 0,
+          weightLb: invItem.weight || 0,
         },
         select: { id: true },
       });
@@ -55,21 +65,43 @@ export async function createCharacterFromFoundry(userId: string, rawJson: unknow
     inventoryConnections.push({ itemId: eqItem.id, quantity: invItem.quantity, isEquipped: invItem.equipped });
   }
 
-  const formattedFeats = parsed.extractedFeats.map((feat) => ({
-    name: feat.name ?? "Inconnu",
-    description: feat.description ?? "",
-    requirements: feat.requirements ?? null,
-    featureType: feat.featureType ?? "feat",
-  }));
+  const formattedFeats = parsed.extractedFeats
+    .map((feat) => ({
+      name: feat.name ?? "Inconnu",
+      description: feat.description ?? "",
+      requirements: feat.requirements ?? null,
+      featureType: feat.featureType ?? "feat",
+    }))
+    .filter((feat) => feat.featureType !== "class");
 
   return prisma.character.create({
     data: {
-      userId, name: parsed.name, avatarUrl: parsed.avatarUrl, race: parsed.race, class: parsed.class,
-      subclass: parsed.subclass, level: parsed.level, backstory: parsed.backstory, foundryActorId: parsed.foundryActorId,
-      foundryVersion: parsed.foundryVersion, rawImportData: parsed.rawImportData, stats: parsed.stats,
-      themeKey: "warrior", notebookTheme: "parchment", strength, dexterity, constitution, intelligence, wisdom, charisma,
-      strengthMod: getMod(strength), dexterityMod: getMod(dexterity), constitutionMod: getMod(constitution),
-      intelligenceMod: getMod(intelligence), wisdomMod: getMod(wisdom), charismaMod: getMod(charisma),
+      userId,
+      name: parsed.name,
+      avatarUrl: parsed.avatarUrl,
+      race: parsed.race,
+      class: parsed.class,
+      subclass: parsed.subclass,
+      level: parsed.level,
+      backstory: parsed.backstory,
+      foundryActorId: parsed.foundryActorId,
+      foundryVersion: parsed.foundryVersion,
+      rawImportData: parsed.rawImportData,
+      stats: parsed.stats,
+      themeKey: "warrior",
+      notebookTheme: "parchment",
+      strength,
+      dexterity,
+      constitution,
+      intelligence,
+      wisdom,
+      charisma,
+      strengthMod: getMod(strength),
+      dexterityMod: getMod(dexterity),
+      constitutionMod: getMod(constitution),
+      intelligenceMod: getMod(intelligence),
+      wisdomMod: getMod(wisdom),
+      charismaMod: getMod(charisma),
       currentHitPoints: (parsed.stats.hitPoints as any)?.current ?? 10,
       maxHitPoints: (parsed.stats.hitPoints as any)?.max ?? 10,
       armorClass: (parsed.stats.armorClass as number) ?? 10,

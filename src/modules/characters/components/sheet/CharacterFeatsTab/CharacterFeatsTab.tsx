@@ -32,23 +32,7 @@ type CharacterFeatsTabProps = {
   onTogglePin?: (uniqueKey: string) => void;
 };
 
-export function CharacterFeatsTab({ 
-  character, 
-  editing, 
-  activeFeats, 
-  setDraftFeats, 
-  newFeat, 
-  setNewFeat, 
-  classFeaturesAtLevel, 
-  availableFeats = [],
-  onDeleteFeat,
-  onTogglePin
-}: CharacterFeatsTabProps) {
-
- // 🔍 AJOUTE CE CODE DE DÉBOGAGE ICI :
-  console.log("🔍 [DEBUG FEATS TAB] classFeaturesAtLevel reçues :", classFeaturesAtLevel);
-  console.log("🔍 [DEBUG FEATS TAB] activeFeats reçus :", activeFeats);
-
+export function CharacterFeatsTab({ character, editing, activeFeats, setDraftFeats, newFeat, setNewFeat, classFeaturesAtLevel, availableFeats = [], onDeleteFeat, onTogglePin }: CharacterFeatsTabProps) {
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({});
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
@@ -69,7 +53,7 @@ export function CharacterFeatsTab({
 
   const handleAddFeat = () => {
     if (!newFeat.name.trim()) return;
-    
+
     const featToAdd = {
       id: `custom-feat-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       name: newFeat.name.trim(),
@@ -114,38 +98,19 @@ export function CharacterFeatsTab({
     .filter(({ feat, globalIdx }) => !deletedKeys[`acquired-${feat.id ?? globalIdx}-${globalIdx}`]);
 
   // 3. Aptitudes de Classe (liées directement à la source propre classFeaturesAtLevel)
-  const classTraitsFromImport = classFeaturesSource
-    .map((feat, globalIdx) => ({ feat, globalIdx }))
-    .filter(({ feat, globalIdx }) => !deletedKeys[`class-trait-${feat.id ?? globalIdx}-${globalIdx}`]);
+  const classTraitsFromImport = classFeaturesSource.map((feat, globalIdx) => ({ feat, globalIdx })).filter(({ feat, globalIdx }) => !deletedKeys[`class-trait-${feat.id ?? globalIdx}-${globalIdx}`]);
 
   const filteredRacialTraits = racialTraits.filter(({ feat }) => feat.name.toLowerCase().includes(racialSearch.toLowerCase()));
-  
-  const matchesOriginSearch = character.originFeat && !deletedKeys["origin-feat"] && (
-    character.originFeat.name.toLowerCase().includes(originSearch.toLowerCase()) || 
-    (character.originFeat.description && character.originFeat.description.toLowerCase().includes(originSearch.toLowerCase()))
-  );
 
-  const filteredAcquiredFeats = standardImportedFeats.filter(({ feat }) => 
-    feat.name.toLowerCase().includes(acquiredSearch.toLowerCase()) || 
-    (feat.description && feat.description.toLowerCase().includes(acquiredSearch.toLowerCase()))
-  );
+  const matchesOriginSearch = character.originFeat && !deletedKeys["origin-feat"] && (character.originFeat.name.toLowerCase().includes(originSearch.toLowerCase()) || (character.originFeat.description && character.originFeat.description.toLowerCase().includes(originSearch.toLowerCase())));
 
-  const filteredClassTraits = classTraitsFromImport.filter(({ feat }) => 
-    feat.name.toLowerCase().includes(classSearch.toLowerCase()) || 
-    (feat.description && feat.description.toLowerCase().includes(classSearch.toLowerCase()))
-  );
+  const filteredAcquiredFeats = standardImportedFeats.filter(({ feat }) => feat.name.toLowerCase().includes(acquiredSearch.toLowerCase()) || (feat.description && feat.description.toLowerCase().includes(acquiredSearch.toLowerCase())));
 
-  
+  const filteredClassTraits = classTraitsFromImport.filter(({ feat }) => feat.name.toLowerCase().includes(classSearch.toLowerCase()) || (feat.description && feat.description.toLowerCase().includes(classSearch.toLowerCase())));
+
   return (
     <section className="mt-2 space-y-4">
-      {editing && (
-        <FeatCreationBox 
-          newFeat={newFeat}
-          setNewFeat={setNewFeat}
-          availableFeats={availableFeats}
-          onAddFeat={handleAddFeat}
-        />
-      )}
+      {editing && <FeatCreationBox newFeat={newFeat} setNewFeat={setNewFeat} availableFeats={availableFeats} onAddFeat={handleAddFeat} />}
 
       {racialTraits.length > 0 && filteredRacialTraits.length > 0 && (
         <div className="rounded-xl border p-4 shadow-sm" style={{ borderColor: "var(--dnd-accent)", background: "var(--dnd-surface)" }}>
@@ -160,43 +125,18 @@ export function CharacterFeatsTab({
 
           {!collapsedSections["racial"] && (
             <div className="space-y-2 pt-1">
-              {racialTraits.length > 3 && (
-                <input
-                  type="text"
-                  placeholder="Filtrer les traits raciaux..."
-                  value={racialSearch}
-                  onChange={(e) => setRacialSearch(e.target.value)}
-                  className="w-full rounded-lg border px-2.5 py-1 text-xs outline-none mb-2"
-                  style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}
-                />
-              )}
+              {racialTraits.length > 3 && <input type="text" placeholder="Filtrer les traits raciaux..." value={racialSearch} onChange={(e) => setRacialSearch(e.target.value)} className="w-full rounded-lg border px-2.5 py-1 text-xs outline-none mb-2" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} />}
               {filteredRacialTraits.map(({ feat: trait, globalIdx }: { feat: any; globalIdx: number }) => {
                 const featId = trait.id ?? globalIdx;
                 const uniqueKey = `racial-${featId}-${globalIdx}`;
                 return (
                   <div key={uniqueKey} className="flex items-center gap-2">
                     <div className="flex-1">
-                      <SubtileFeatCard 
-                        itemKey={uniqueKey} 
-                        title={trait.name} 
-                        description={trait.description} 
-                        isOpen={!!openItems[uniqueKey]} 
-                        onToggle={toggleItem} 
-                        onDelete={editing ? () => handleDeleteItem(uniqueKey, trait) : undefined}
-                      />
+                      <SubtileFeatCard itemKey={uniqueKey} title={trait.name} description={trait.description} isOpen={!!openItems[uniqueKey]} onToggle={toggleItem} onDelete={editing ? () => handleDeleteItem(uniqueKey, trait) : undefined} />
                     </div>
                     {editing && onTogglePin && (
-                      <button
-                        type="button"
-                        onClick={() => onTogglePin(uniqueKey)}
-                        className={`px-3 py-2 text-xs font-bold rounded-lg border transition-all shrink-0 ${
-                          trait.isPinned 
-                            ? 'bg-amber-500 text-white border-amber-600' 
-                            : 'bg-transparent border-[var(--dnd-accent-soft)] hover:opacity-80'
-                        }`}
-                        title="Épingler comme don clé"
-                      >
-                        {trait.isPinned ? '★ Clé' : '☆ Épingler'}
+                      <button type="button" onClick={() => onTogglePin(uniqueKey)} className={`px-3 py-2 text-xs font-bold rounded-lg border transition-all shrink-0 ${trait.isPinned ? "bg-amber-500 text-white border-amber-600" : "bg-transparent border-[var(--dnd-accent-soft)] hover:opacity-80"}`} title="Épingler comme don clé">
+                        {trait.isPinned ? "★ Clé" : "☆ Épingler"}
                       </button>
                     )}
                   </div>
@@ -218,24 +158,10 @@ export function CharacterFeatsTab({
 
           {!collapsedSections["origin"] && (
             <div className="space-y-2 pt-1">
-              <input
-                type="text"
-                placeholder="Filtrer le don d'origine..."
-                value={originSearch}
-                onChange={(e) => setOriginSearch(e.target.value)}
-                className="w-full rounded-lg border px-2.5 py-1 text-xs outline-none mb-2"
-                style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}
-              />
+              <input type="text" placeholder="Filtrer le don d'origine..." value={originSearch} onChange={(e) => setOriginSearch(e.target.value)} className="w-full rounded-lg border px-2.5 py-1 text-xs outline-none mb-2" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} />
               <div className="flex items-center gap-2">
                 <div className="flex-1">
-                  <SubtileFeatCard 
-                    itemKey="origin-feat" 
-                    title={character.originFeat.name} 
-                    description={character.originFeat.description ?? "Aucune description."} 
-                    isOpen={!!openItems["origin-feat"]} 
-                    onToggle={toggleItem} 
-                    onDelete={editing ? () => handleDeleteItem("origin-feat", character.originFeat) : undefined}
-                  />
+                  <SubtileFeatCard itemKey="origin-feat" title={character.originFeat.name} description={character.originFeat.description ?? "Aucune description."} isOpen={!!openItems["origin-feat"]} onToggle={toggleItem} onDelete={editing ? () => handleDeleteItem("origin-feat", character.originFeat) : undefined} />
                 </div>
               </div>
             </div>
@@ -254,43 +180,18 @@ export function CharacterFeatsTab({
 
           {!collapsedSections["acquired"] && (
             <div className="space-y-2 pt-1">
-              {standardImportedFeats.length > 3 && (
-                <input
-                  type="text"
-                  placeholder="Filtrer les dons acquis..."
-                  value={acquiredSearch}
-                  onChange={(e) => setAcquiredSearch(e.target.value)}
-                  className="w-full rounded-lg border px-2.5 py-1 text-xs outline-none mb-2"
-                  style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}
-                />
-              )}
+              {standardImportedFeats.length > 3 && <input type="text" placeholder="Filtrer les dons acquis..." value={acquiredSearch} onChange={(e) => setAcquiredSearch(e.target.value)} className="w-full rounded-lg border px-2.5 py-1 text-xs outline-none mb-2" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} />}
               {filteredAcquiredFeats.map(({ feat: featEntry, globalIdx }: { feat: any; globalIdx: number }) => {
                 const featId = featEntry.id ?? globalIdx;
                 const uniqueKey = `acquired-${featId}-${globalIdx}`;
                 return (
                   <div key={uniqueKey} className="flex items-center gap-2">
                     <div className="flex-1">
-                      <SubtileFeatCard 
-                        itemKey={uniqueKey} 
-                        title={featEntry.name} 
-                        description={featEntry.description} 
-                        isOpen={!!openItems[uniqueKey]} 
-                        onToggle={toggleItem} 
-                        onDelete={editing ? () => handleDeleteItem(uniqueKey, featEntry) : undefined}
-                      />
+                      <SubtileFeatCard itemKey={uniqueKey} title={featEntry.name} description={featEntry.description} isOpen={!!openItems[uniqueKey]} onToggle={toggleItem} onDelete={editing ? () => handleDeleteItem(uniqueKey, featEntry) : undefined} />
                     </div>
                     {editing && onTogglePin && (
-                      <button
-                        type="button"
-                        onClick={() => onTogglePin(uniqueKey)}
-                        className={`px-3 py-2 text-xs font-bold rounded-lg border transition-all shrink-0 ${
-                          featEntry.isPinned 
-                            ? 'bg-amber-500 text-white border-amber-600' 
-                            : 'bg-transparent border-[var(--dnd-accent-soft)] hover:opacity-80'
-                        }`}
-                        title="Épingler comme don clé"
-                      >
-                        {featEntry.isPinned ? '★ Clé' : '☆ Épingler'}
+                      <button type="button" onClick={() => onTogglePin(uniqueKey)} className={`px-3 py-2 text-xs font-bold rounded-lg border transition-all shrink-0 ${featEntry.isPinned ? "bg-amber-500 text-white border-amber-600" : "bg-transparent border-[var(--dnd-accent-soft)] hover:opacity-80"}`} title="Épingler comme don clé">
+                        {featEntry.isPinned ? "★ Clé" : "☆ Épingler"}
                       </button>
                     )}
                   </div>
@@ -304,9 +205,7 @@ export function CharacterFeatsTab({
       {classTraitsFromImport.length > 0 && filteredClassTraits.length > 0 && (
         <div className="rounded-xl border p-4 shadow-sm" style={{ borderColor: "var(--dnd-accent)", background: "var(--dnd-surface)" }}>
           <div onClick={() => toggleSection("class")} className="flex items-center justify-between cursor-pointer select-none mb-3">
-            <h3 className="font-extrabold text-xs uppercase tracking-wider text-blue-600 dark:text-blue-400">
-              Aptitudes de classe ({filteredClassTraits.length})
-            </h3>
+            <h3 className="font-extrabold text-xs uppercase tracking-wider text-blue-600 dark:text-blue-400">Aptitudes de classe ({filteredClassTraits.length})</h3>
             <span className="text-xs font-bold opacity-70" style={{ color: "var(--dnd-accent)" }}>
               {collapsedSections["class"] ? "[ + Afficher ]" : "[ - Masquer ]"}
             </span>
@@ -314,44 +213,18 @@ export function CharacterFeatsTab({
 
           {!collapsedSections["class"] && (
             <div className="space-y-2 pt-1">
-              {classTraitsFromImport.length > 3 && (
-                <input
-                  type="text"
-                  placeholder="Filtrer les aptitudes de classe..."
-                  value={classSearch}
-                  onChange={(e) => setClassSearch(e.target.value)}
-                  className="w-full rounded-lg border px-2.5 py-1 text-xs outline-none mb-2"
-                  style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}
-                />
-              )}
+              {classTraitsFromImport.length > 3 && <input type="text" placeholder="Filtrer les aptitudes de classe..." value={classSearch} onChange={(e) => setClassSearch(e.target.value)} className="w-full rounded-lg border px-2.5 py-1 text-xs outline-none mb-2" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} />}
               {filteredClassTraits.map(({ feat, globalIdx }: { feat: any; globalIdx: number }) => {
                 const featId = feat.id ?? globalIdx;
                 const uniqueKey = `class-trait-${featId}-${globalIdx}`;
                 return (
                   <div key={uniqueKey} className="flex items-center gap-2">
                     <div className="flex-1">
-                      <SubtileFeatCard 
-                        itemKey={uniqueKey} 
-                        title={feat.name} 
-                        subtitle={feat.requirements ?? ""} 
-                        description={feat.description} 
-                        isOpen={!!openItems[uniqueKey]} 
-                        onToggle={toggleItem} 
-                        onDelete={editing ? () => handleDeleteItem(uniqueKey, feat) : undefined}
-                      />
+                      <SubtileFeatCard itemKey={uniqueKey} title={feat.name} subtitle={feat.requirements ?? (feat.level ? `Niveau ${feat.level}` : "")} description={feat.description} isOpen={!!openItems[uniqueKey]} onToggle={toggleItem} onDelete={editing ? () => handleDeleteItem(uniqueKey, feat) : undefined} />
                     </div>
                     {editing && onTogglePin && (
-                      <button
-                        type="button"
-                        onClick={() => onTogglePin(uniqueKey)}
-                        className={`px-3 py-2 text-xs font-bold rounded-lg border transition-all shrink-0 ${
-                          feat.isPinned 
-                            ? 'bg-amber-500 text-white border-amber-600' 
-                            : 'bg-transparent border-[var(--dnd-accent-soft)] hover:opacity-80'
-                        }`}
-                        title="Épingler comme aptitude clé"
-                      >
-                        {feat.isPinned ? '★ Clé' : '☆ Épingler'}
+                      <button type="button" onClick={() => onTogglePin(uniqueKey)} className={`px-3 py-2 text-xs font-bold rounded-lg border transition-all shrink-0 ${feat.isPinned ? "bg-amber-500 text-white border-amber-600" : "bg-transparent border-[var(--dnd-accent-soft)] hover:opacity-80"}`} title="Épingler comme aptitude clé">
+                        {feat.isPinned ? "★ Clé" : "☆ Épingler"}
                       </button>
                     )}
                   </div>
