@@ -30,22 +30,27 @@ type CharacterSheetProps = {
   onSave?: (data: CharacterSheetUpdateData) => Promise<void>;
   onLevelUp?: (data: CharacterLevelUpData) => Promise<void>;
   onToggleEquip?: (inventoryItemId: string) => Promise<void>;
+  onUpdateTheme?: (themeKey: string) => Promise<void>; // <-- Prop dédiée pour le thème
 };
 
-export function CharacterSheet({ character, onSave, onLevelUp, onToggleEquip }: CharacterSheetProps) {
+export function CharacterSheet({ characterId, character, onSave, onLevelUp, onToggleEquip, onUpdateTheme }: CharacterSheetProps) {
   const sheet = useCharacterSheet(character, onSave, onLevelUp, onToggleEquip);
 
-  const handleThemeChange = async (newTheme: string) => {
+const handleThemeChange = async (newTheme: string) => {
     const themeValue = newTheme as DndThemeKey;
     
+    // Met à jour l'état visuel local instantanément
     sheet.setTheme(themeValue);
     
-    if (onSave) {
-      try {
-        await onSave({ themeKey: themeValue } as any);
-      } catch (err) {
-        console.error("Erreur lors de la sauvegarde du thème", err);
+    try {
+      if (onUpdateTheme) {
+        await onUpdateTheme(themeValue);
+        return;
       }
+
+      console.warn("[CharacterSheet] missing onUpdateTheme for theme change; refusing partial onSave payload");
+    } catch (err) {
+      console.error("Erreur lors de la sauvegarde du thème", err);
     }
   };
 
