@@ -101,6 +101,52 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
   const [draftFeats, setDraftFeats] = useState<CharacterFeatEntry[]>(initialFeats);
   const [draftInventory, setDraftInventory] = useState<CharacterInventoryEntry[]>(character.inventoryItems ?? []);
 
+  // Extraction propre des aptitudes de classe basées sur les feats
+  const initialClassFeatures = useMemo(() => {
+    const allFeats = (character as any).selectedFeats ?? (character as any).feats ?? (character as any).rawImportData?.feats ?? [];
+    return Array.isArray(allFeats)
+      ? allFeats.filter((f: any) => f.featureType === "class")
+      : [];
+  }, [character]);
+
+  const [draftClassFeatures, setDraftClassFeatures] = useState<any[]>(initialClassFeatures);
+
+  // Synchronise le brouillon lorsque les données ou le mode changent pour éviter qu'elles ne disparaissent
+  useEffect(() => {
+    setDraftClassFeatures(initialClassFeatures);
+  }, [initialClassFeatures]);
+
+  // Fonction de bascule standard (gérée en mode édition via le formulaire global)
+  const handleTogglePin = (uniqueKey: string) => {
+    const lastHyphenIndex = uniqueKey.lastIndexOf("-");
+    if (lastHyphenIndex === -1) return;
+    
+    const prefix = uniqueKey.substring(0, lastHyphenIndex);
+    const targetIndex = parseInt(uniqueKey.substring(lastHyphenIndex + 1), 10);
+
+    if (isNaN(targetIndex)) return;
+
+    if (prefix.startsWith("class-trait")) {
+      setDraftClassFeatures((current) =>
+        current.map((feat: any, idx: number) => {
+          if (idx === targetIndex) {
+            return { ...feat, isPinned: !feat.isPinned };
+          }
+          return feat;
+        })
+      );
+    } else {
+      setDraftFeats((current) =>
+        current.map((feat: any, idx: number) => {
+          if (idx === targetIndex) {
+            return { ...feat, isPinned: !feat.isPinned };
+          }
+          return feat;
+        })
+      );
+    }
+  };
+
   const [newSpell, setNewSpell] = useState<CharacterNewSpellState>({
     name: "",
     level: 0,
@@ -207,7 +253,7 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
   const activeFeats = editing ? draftFeats : initialFeats;
   const activeInventory = editing ? draftInventory : (character.inventoryItems ?? []);
 
-  const classFeaturesAtLevel = useMemo(() => (character.dndClass?.classFeatures ?? []).filter((f: { level: number }) => f.level <= character.level), [character.dndClass, character.level]);
+  const classFeaturesAtLevel = editing ? draftClassFeatures : initialClassFeatures;
 
   const legalAsiLevels = useMemo(() => [...asiLevelsForClass(character.className)] as number[], [character.className]);
 
@@ -240,8 +286,8 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
     if (!onSave) return;
     startTransition(async () => {
       try {
-        // Protection anti-wipe : si draftFeats est vide par erreur mais qu'on a des feats initiaux, on garde les initiaux
-        const featsToSave = draftFeats.length > 0 ? draftFeats : initialFeats;
+        // Inclut à la fois les dons et les aptitudes de classe modifiées/épinglées lors de la sauvegarde globale
+        const featsToSave = [...draftFeats, ...draftClassFeatures];
 
         await onSave({
           name: draftName.trim(),
@@ -347,6 +393,7 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
     skillBonuses,
     activeFeats,
     setDraftFeats,
+    handleTogglePin,
     newFeat,
     setNewFeat,
     classFeaturesAtLevel,

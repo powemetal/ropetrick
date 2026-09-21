@@ -59,7 +59,13 @@ export type CharacterSpellEntry = {
   };
 };
 
-export type CharacterFeatEntry = { id: string; name: string; category: string; description: string };
+export type CharacterFeatEntry = { 
+  id: string; 
+  name: string; 
+  category: string; 
+  description: string;
+  isPinned?: boolean; // Support pour épingler le don en tant qu'aptitude clé
+};
 
 export type CharacterInventoryEntry = {
   id: string;
@@ -147,7 +153,7 @@ export type CharacterSheetViewCharacter = {
   inventoryItems?: CharacterInventoryEntry[];
   dndClass?: { id?: string; slug?: string; spellcastingAbility?: string | null; spellcastingProgression?: SpellcastingProgression | null; classFeatures: { id: string; level: number; name: string; description: string }[] } | null;
   dndSubclass?: { id: string; name: string; description?: string | null } | null;
-  originFeat?: { id: string; name: string; category: string; description: string } | null;
+  originFeat?: { id: string; name: string; category: string; description: string; isPinned?: boolean } | null;
   feats?: CharacterFeatEntry[];
 };
 

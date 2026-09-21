@@ -13,14 +13,47 @@ type CharacterSkillsProps = {
   cycleSkill: (skill: Skill) => void;
   skillBonuses: Record<Skill, number>;
   activeFeats: CharacterFeatEntry[];
-  classFeaturesAtLevel: { id?: string; name: string; level?: number }[];
+  classFeaturesAtLevel: { id?: string; name: string; level?: number; isPinned?: boolean }[];
   onNavigateToFeatsTab: () => void;
+  onTogglePin?: (id: string) => void;
 };
 
-export function CharacterSkills({ character, editing, proficiencies, cycleSkill, skillBonuses, activeFeats, classFeaturesAtLevel, onNavigateToFeatsTab }: CharacterSkillsProps) {
+export function CharacterSkills({ 
+  character, 
+  editing, 
+  proficiencies, 
+  cycleSkill, 
+  skillBonuses, 
+  activeFeats, 
+  classFeaturesAtLevel, 
+  onNavigateToFeatsTab,
+  onTogglePin
+}: CharacterSkillsProps) {
   const skillDefinitions = new Map((character.skillDefinitions ?? []).map((definition) => [definition.code.toLowerCase(), definition]));
 
-  const combinedItems = [...classFeaturesAtLevel, ...activeFeats].slice(0, 6);
+  // On combine toutes les sources en utilisant exactement la même structure d'index global
+  const allAvailableItems = [
+    ...classFeaturesAtLevel.map((f, globalIdx) => {
+      const featId = f.id ?? globalIdx;
+      return {
+        ...f,
+        type: 'class' as const,
+        uniqueId: `class-trait-${featId}-${globalIdx}`
+      };
+    }),
+    ...activeFeats.map((f: any, globalIdx: number) => {
+      const featId = f.id ?? globalIdx;
+      const typePrefix = f.featureType === "race" ? "racial" : f.featureType === "class" ? "class-trait" : "acquired";
+      return {
+        ...f,
+        type: f.featureType === "class" ? ('class' as const) : ('feat' as const),
+        uniqueId: `${typePrefix}-${featId}-${globalIdx}`
+      };
+    })
+  ];
+
+  // Uniquement les éléments explicitement épinglés (isPinned === true)
+  const displayItems = allAvailableItems.filter((item: any) => item.isPinned === true);
 
   return (
     <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.75fr]">
@@ -52,25 +85,40 @@ export function CharacterSkills({ character, editing, proficiencies, cycleSkill,
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Dons & Aptitudes clés</h3>
           <button type="button" onClick={onNavigateToFeatsTab} className="text-[11px] font-medium hover:underline" style={{ color: "var(--dnd-accent)" }}>
-            Voir tout
+            {editing ? "Gérer / Voir tout" : "Voir tout"}
           </button>
         </div>
 
         <div className="mt-3 flex flex-1 flex-col gap-2">
-          {combinedItems.map((feat, i) => {
-            const safeKeyId = feat.id ?? `feat-index-${i}`;
-            const isClassFeature = "level" in feat || i < classFeaturesAtLevel.length;
+          {displayItems.map((feat) => {
+            const isClassFeature = feat.type === 'class';
 
             return (
-              <div key={`skill-feat-${safeKeyId}-${i}`} className="flex items-center justify-between rounded bg-white/40 px-2 py-1.5 text-xs border border-[var(--dnd-accent-soft)]">
+              <div key={`pinned-feat-${feat.uniqueId}`} className="flex items-center justify-between rounded bg-white/40 px-2 py-1.5 text-xs border border-[var(--dnd-accent-soft)]">
                 <span className="font-medium truncate mr-2">{feat.name}</span>
-                <span className="shrink-0 rounded-full bg-[var(--dnd-accent-soft)] px-2 py-0.5 text-[9px] uppercase tracking-wider font-bold" style={{ color: "var(--dnd-accent)" }}>
-                  {isClassFeature ? "Aptitude" : "Don"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="shrink-0 rounded-full bg-[var(--dnd-accent-soft)] px-2 py-0.5 text-[9px] uppercase tracking-wider font-bold" style={{ color: "var(--dnd-accent)" }}>
+                    {isClassFeature ? "Aptitude" : "Don"}
+                  </span>
+                  {editing && onTogglePin && (
+                    <button 
+                      type="button" 
+                      onClick={() => onTogglePin(feat.uniqueId)}
+                      className="text-red-500 hover:text-red-700 font-bold px-1"
+                      title="Retirer des clés"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
-          {combinedItems.length === 0 && <p className="text-xs italic text-center mt-4" style={{ color: "var(--dnd-muted)" }}>Aucune aptitude enregistrée</p>}
+          {displayItems.length === 0 && (
+            <p className="text-xs italic text-center mt-4" style={{ color: "var(--dnd-muted)" }}>
+              {editing ? "Aucun élément épinglé. Va dans 'Voir tout' pour en ajouter !" : "Aucun don ou aptitude clé épinglé"}
+            </p>
+          )}
         </div>
       </section>
     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { themeStyle, type DndThemeKey } from "@/styles/dnd-themes";
 import {
   CharacterHeader,
@@ -30,16 +31,18 @@ type CharacterSheetProps = {
   onSave?: (data: CharacterSheetUpdateData) => Promise<void>;
   onLevelUp?: (data: CharacterLevelUpData) => Promise<void>;
   onToggleEquip?: (inventoryItemId: string) => Promise<void>;
-  onUpdateTheme?: (themeKey: string) => Promise<void>; // <-- Prop dédiée pour le thème
+  onUpdateTheme?: (themeKey: string) => Promise<void>;
 };
 
 export function CharacterSheet({ characterId, character, onSave, onLevelUp, onToggleEquip, onUpdateTheme }: CharacterSheetProps) {
   const sheet = useCharacterSheet(character, onSave, onLevelUp, onToggleEquip);
 
-const handleThemeChange = async (newTheme: string) => {
+  // État pour afficher ou non la jolie modale de confirmation de fermeture d'édition
+  const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
+
+  const handleThemeChange = async (newTheme: string) => {
     const themeValue = newTheme as DndThemeKey;
     
-    // Met à jour l'état visuel local instantanément
     sheet.setTheme(themeValue);
     
     try {
@@ -52,6 +55,29 @@ const handleThemeChange = async (newTheme: string) => {
     } catch (err) {
       console.error("Erreur lors de la sauvegarde du thème", err);
     }
+  };
+
+  // Intercepte l'action de bascule du mode édition
+  const handleToggleEditing = () => {
+    if (sheet.editing) {
+      // Si on essaye de fermer l'édition, on déclenche notre modale personnalisée
+      setShowExitConfirmModal(true);
+    } else {
+      // Si on ouvre l'édition, on l'active directement
+      sheet.setEditing(true);
+    }
+  };
+
+  // Confirmer l'enregistrement et fermer
+  const handleConfirmSaveAndClose = async () => {
+    await sheet.saveChanges();
+    setShowExitConfirmModal(false);
+  };
+
+  // Abandonner les modifications et fermer
+  const handleDiscardAndClose = () => {
+    sheet.setEditing(false);
+    setShowExitConfirmModal(false);
   };
 
   return (
@@ -76,7 +102,7 @@ const handleThemeChange = async (newTheme: string) => {
         theme={sheet.theme}
         setTheme={handleThemeChange}
         onOpenLevelModal={onLevelUp ? () => sheet.setLevelModal(true) : undefined}
-        onToggleEditing={onSave ? () => sheet.setEditing((c) => !c) : undefined}
+        onToggleEditing={onSave ? handleToggleEditing : undefined}
       />
 
       {/* 1. Caractéristiques & Santé */}
@@ -120,6 +146,7 @@ const handleThemeChange = async (newTheme: string) => {
           activeFeats={sheet.activeFeats}
           classFeaturesAtLevel={sheet.classFeaturesAtLevel}
           onNavigateToFeatsTab={() => sheet.setActiveTab("feats")}
+          onTogglePin={sheet.handleTogglePin}
         />
       </CollapsibleSection>
 
@@ -130,32 +157,46 @@ const handleThemeChange = async (newTheme: string) => {
         onToggle={() => sheet.toggleCollapsed("details")}
         maxHeightClass="max-h-[3500px]"
       >
-        <nav
-          className="flex flex-wrap gap-2 border-b pb-3 mb-4"
-          style={{ borderColor: "var(--dnd-accent-soft)" }}
-          aria-label="Onglets de fiche"
-        >
-          {[
-            ["spellbook", "Grimoire"],
-            ["feats", "Dons & Aptitudes"],
-            ["inventory", "Inventaire & bourse"],
-            ["biography", "Biographie"],
-          ].map(([val, label]) => (
+        {/* Barre d'onglets et bouton d'édition rapide intégrés juste au-dessus du Grimoire/Dons */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-3 mb-4" style={{ borderColor: "var(--dnd-accent-soft)" }}>
+          <nav
+            className="flex flex-wrap gap-2"
+            aria-label="Onglets de fiche"
+          >
+            {[
+              ["spellbook", "Grimoire"],
+              ["feats", "Dons & Aptitudes"],
+              ["inventory", "Inventaire & bourse"],
+              ["biography", "Biographie"],
+            ].map(([val, label]) => (
+              <button
+                key={`tab-${val}`}
+                type="button"
+                onClick={() => sheet.setActiveTab(val as typeof sheet.activeTab)}
+                className="rounded px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-colors"
+                style={{
+                  background: sheet.activeTab === val ? "var(--dnd-accent)" : "transparent",
+                  color: sheet.activeTab === val ? "#fff" : "var(--dnd-ink)",
+                  border: sheet.activeTab === val ? "none" : "1px solid var(--dnd-accent-soft)",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Bouton d'édition rapide placé juste ici */}
+          {onSave && (
             <button
-              key={`tab-${val}`}
               type="button"
-              onClick={() => sheet.setActiveTab(val as typeof sheet.activeTab)}
-              className="rounded px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-colors"
-              style={{
-                background: sheet.activeTab === val ? "var(--dnd-accent)" : "transparent",
-                color: sheet.activeTab === val ? "#fff" : "var(--dnd-ink)",
-                border: sheet.activeTab === val ? "none" : "1px solid var(--dnd-accent-soft)",
-              }}
+              onClick={handleToggleEditing}
+              className="rounded-md px-3 py-2 text-xs font-bold text-white transition-all shadow-sm shrink-0"
+              style={{ background: "var(--dnd-accent)" }}
             >
-              {label}
+              {sheet.editing ? "✓ Fermer l'édition" : "✎ Modifier la fiche"}
             </button>
-          ))}
-        </nav>
+          )}
+        </div>
 
         {sheet.activeTab === "spellbook" && (
           <CharacterSpellbookTab
@@ -183,6 +224,7 @@ const handleThemeChange = async (newTheme: string) => {
             setNewFeat={sheet.setNewFeat}
             classFeaturesAtLevel={sheet.classFeaturesAtLevel}
             availableFeats={sheet.availableFeats}
+            onTogglePin={sheet.handleTogglePin}
           />
         )}
 
@@ -225,6 +267,46 @@ const handleThemeChange = async (newTheme: string) => {
         <p role="alert" className="mt-3 text-sm text-red-600 font-medium">
           {sheet.error}
         </p>
+      )}
+
+      {/* Belle modale de confirmation personnalisée */}
+      {showExitConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div 
+            className="w-full max-w-md rounded-2xl border p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150"
+            style={{ 
+              background: "var(--dnd-surface)", 
+              borderColor: "var(--dnd-accent)",
+              color: "var(--dnd-ink)" 
+            }}
+          >
+            <h3 className="text-base font-bold uppercase tracking-wider" style={{ color: "var(--dnd-accent)" }}>
+              Quitter le mode édition ?
+            </h3>
+            <p className="text-sm opacity-90 leading-relaxed">
+              Souhaitez-vous enregistrer vos modifications avant de quitter le mode édition, ou préférez-vous les abandonner ?
+            </p>
+            <div className="flex flex-col sm:flex-row justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={handleDiscardAndClose}
+                className="rounded-lg border px-4 py-2 text-xs font-bold transition-all opacity-80 hover:opacity-100"
+                style={{ borderColor: "var(--dnd-accent-soft)" }}
+              >
+                Abandonner
+              </button>
+              <button
+                type="button"
+                disabled={sheet.pending}
+                onClick={handleConfirmSaveAndClose}
+                className="rounded-lg px-4 py-2 text-xs font-bold text-white transition-all shadow-md hover:opacity-95 disabled:opacity-50"
+                style={{ background: "var(--dnd-accent)" }}
+              >
+                {sheet.pending ? "Enregistrement..." : "Enregistrer et fermer"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {sheet.levelModal && (
