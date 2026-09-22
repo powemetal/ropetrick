@@ -27,7 +27,7 @@ export default async function NewCharacterPage() {
           ← Retour aux personnages
         </Link>
         <div className="mt-8">
-          <CharacterWizard compendium={compendium} onSubmit={createCharacterAction} />
+          <CharacterWizard compendium={compendium as any} onSubmit={createCharacterAction} />
         </div>
       </div>
     </main>

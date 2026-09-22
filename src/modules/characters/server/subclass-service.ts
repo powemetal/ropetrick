@@ -50,7 +50,7 @@ export async function fetchSubclassesForClass(className: string) {
 // 2. Récupération des dons (Feats) directement depuis la table feats
 export async function fetchAvailableFeats() {
   try {
-    const feats = await prisma.feats.findMany({
+    const feats = await prisma.feat.findMany({
       select: {
         id: true,
         name: true,

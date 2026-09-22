@@ -41,40 +41,129 @@ export async function updateAdminClassFeature(id: string, data: { level: number;
 
 export async function createAdminSpell(data: { sourceBookId: string; slug: string; name: string; level: number; school: string; castingTime: string; range: string; components: Prisma.InputJsonValue; duration: string; description: string; materials?: string | null; higherLevels?: string | null; concentration: boolean; ritual: boolean; classes: Prisma.InputJsonValue }) {
   await requireAdminAccess();
-  return prisma.spell.create({ data });
+  return prisma.spell.create({ 
+    data: {
+      ...data,
+      materials: data.materials ?? null,
+      higherLevels: data.higherLevels ?? null,
+    } 
+  });
 }
 
 export async function updateAdminSpell(id: string, data: { sourceBookId: string; name: string; level: number; school: string; castingTime: string; range: string; components: Prisma.InputJsonValue; duration: string; description: string; materials?: string | null; higherLevels?: string | null; concentration: boolean; ritual: boolean; classes: Prisma.InputJsonValue }) {
   await requireAdminAccess();
-  return prisma.spell.update({ where: { id }, data });
+  return prisma.spell.update({ 
+    where: { id }, 
+    data: {
+      ...data,
+      materials: data.materials ?? null,
+      higherLevels: data.higherLevels ?? null,
+    } 
+  });
 }
 
 export async function createAdminFeat(data: { sourceBookId: string; slug: string; name: string; category: string; prerequisite?: string | null; levelRequirement?: number | null; description: string }) {
   await requireAdminAccess();
-  return prisma.feat.create({ data });
+  return prisma.feat.create({ 
+    data: {
+      sourceBookId: data.sourceBookId,
+      slug: data.slug,
+      name: data.name,
+      category: data.category,
+      description: data.description,
+      prerequisite: data.prerequisite ?? null,
+      levelRequirement: data.levelRequirement ?? undefined, // Laisse undefined s'il est optionnel en base
+    } 
+  });
 }
 
 export async function updateAdminFeat(id: string, data: { sourceBookId: string; name: string; category: string; prerequisite?: string | null; levelRequirement?: number | null; description: string }) {
   await requireAdminAccess();
-  return prisma.feat.update({ where: { id }, data });
+  return prisma.feat.update({ 
+    where: { id }, 
+    data: {
+      sourceBookId: data.sourceBookId,
+      name: data.name,
+      category: data.category,
+      description: data.description,
+      prerequisite: data.prerequisite ?? null,
+      levelRequirement: data.levelRequirement ?? undefined,
+    } 
+  });
 }
 
 export async function createAdminItem(data: { sourceBookId: string; slug: string; name: string; category: string; description: string; type?: ItemType | null; costGp?: number | null; weightLb?: number | null; damageFormula?: string | null; damageType?: string | null; properties: string[]; rangeNormal?: number | null; rangeLong?: number | null; armorCategory?: ArmorCategory | null; armorClass?: number | null; shieldBonus?: number | null; dexterityBonusMax?: number | null; strengthRequirement?: number | null; stealthDisadvantage: boolean; masteryPropertyId?: string | null }) {
   await requireAdminAccess();
-  return prisma.equipmentItem.create({ data });
+  return prisma.equipmentItem.create({ 
+    data: {
+      ...data,
+      type: data.type ?? null,
+      costGp: data.costGp ?? null,
+      weightLb: data.weightLb ?? null,
+      damageFormula: data.damageFormula ?? null,
+      damageType: data.damageType ?? null,
+      rangeNormal: data.rangeNormal ?? null,
+      rangeLong: data.rangeLong ?? null,
+      armorCategory: data.armorCategory ?? null,
+      armorClass: data.armorClass ?? null,
+      shieldBonus: data.shieldBonus ?? null,
+      dexterityBonusMax: data.dexterityBonusMax ?? null,
+      strengthRequirement: data.strengthRequirement ?? null,
+      masteryPropertyId: data.masteryPropertyId ?? null,
+    } 
+  });
 }
 
 export async function updateAdminItem(id: string, data: { sourceBookId: string; name: string; category: string; description: string; type?: ItemType | null; costGp?: number | null; weightLb?: number | null; damageFormula?: string | null; damageType?: string | null; properties: string[]; rangeNormal?: number | null; rangeLong?: number | null; armorCategory?: ArmorCategory | null; armorClass?: number | null; shieldBonus?: number | null; dexterityBonusMax?: number | null; strengthRequirement?: number | null; stealthDisadvantage: boolean; masteryPropertyId?: string | null }) {
   await requireAdminAccess();
-  return prisma.equipmentItem.update({ where: { id }, data });
+  return prisma.equipmentItem.update({ 
+    where: { id }, 
+    data: {
+      ...data,
+      type: data.type ?? null,
+      costGp: data.costGp ?? null,
+      weightLb: data.weightLb ?? null,
+      damageFormula: data.damageFormula ?? null,
+      damageType: data.damageType ?? null,
+      rangeNormal: data.rangeNormal ?? null,
+      rangeLong: data.rangeLong ?? null,
+      armorCategory: data.armorCategory ?? null,
+      armorClass: data.armorClass ?? null,
+      shieldBonus: data.shieldBonus ?? null,
+      dexterityBonusMax: data.dexterityBonusMax ?? null,
+      strengthRequirement: data.strengthRequirement ?? null,
+      masteryPropertyId: data.masteryPropertyId ?? null,
+    } 
+  });
 }
 
 export async function createAdminMonster(data: { sourceBookId?: string | null; slug: string; name: string; size: CreatureSize; creatureType: string; subtype?: string | null; alignment?: string | null; challengeRating: string; cr?: number | null; armorClass: number; hitPoints: number; hitDice?: string | null; strength: number; dexterity: number; constitution: number; intelligence: number; wisdom: number; charisma: number; passivePerception?: number | null; isLegendary: boolean }) {
   await requireAdminAccess();
-  return prisma.monster.create({ data });
+  return prisma.monster.create({ 
+    data: {
+      ...data,
+      sourceBookId: data.sourceBookId ?? null,
+      subtype: data.subtype ?? null,
+      alignment: data.alignment ?? null,
+      cr: data.cr ?? null,
+      hitDice: data.hitDice ?? null,
+      passivePerception: data.passivePerception ?? null,
+    } 
+  });
 }
 
 export async function updateAdminMonster(id: string, data: { sourceBookId?: string | null; name: string; size: CreatureSize; creatureType: string; subtype?: string | null; alignment?: string | null; challengeRating: string; cr?: number | null; armorClass: number; hitPoints: number; hitDice?: string | null; strength: number; dexterity: number; constitution: number; intelligence: number; wisdom: number; charisma: number; passivePerception?: number | null; isLegendary: boolean }) {
   await requireAdminAccess();
-  return prisma.monster.update({ where: { id }, data });
+  return prisma.monster.update({ 
+    where: { id }, 
+    data: {
+      ...data,
+      sourceBookId: data.sourceBookId ?? null,
+      subtype: data.subtype ?? null,
+      alignment: data.alignment ?? null,
+      cr: data.cr ?? null,
+      hitDice: data.hitDice ?? null,
+      passivePerception: data.passivePerception ?? null,
+    } 
+  });
 }
