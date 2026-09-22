@@ -10,7 +10,7 @@ type SpellOption = {
   school?: string | null;
   range?: string | null;
   castingTime?: string | null;
-  components?: string | null;
+  components?: string | Record<string, boolean> | string[] | null;
   concentration?: boolean;
   description?: string | null;
 };
@@ -28,6 +28,24 @@ type CharacterSpellbookTabProps = {
   setSlots: (value: number[] | ((current: number[]) => number[])) => void;
   availableSpells?: SpellOption[];
 };
+
+function formatSpellComponents(components: unknown): string {
+  if (!components) return "Aucune";
+  if (Array.isArray(components)) {
+    const list = components.filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+    return list.length > 0 ? list.join(", ") : "Aucune";
+  }
+  if (typeof components === "string" && components.trim()) {
+    return components.trim();
+  }
+  if (typeof components === "object") {
+    const active = Object.entries(components as Record<string, boolean>)
+      .filter(([_, val]) => Boolean(val))
+      .map(([key]) => key.toUpperCase());
+    return active.length > 0 ? active.join(", ") : "Aucune";
+  }
+  return "Aucune";
+}
 
 export function CharacterSpellbookTab({
   editing,
@@ -124,11 +142,12 @@ export function CharacterSpellbookTab({
     return availableSpells.filter((spell) => {
       const matchesLevel = selectedLevelFilter === "ALL" || Number(spell.level) === Number(selectedLevelFilter);
       const query = searchTerm.trim().toLowerCase();
-      const matchesSearch = !query || 
-        spell.name.toLowerCase().includes(query) || 
+      const matchesSearch =
+        !query ||
+        spell.name.toLowerCase().includes(query) ||
         (spell.school && spell.school.toLowerCase().includes(query)) ||
         (spell.description && spell.description.toLowerCase().includes(query));
-      
+
       return matchesLevel && matchesSearch;
     });
   }, [availableSpells, searchTerm, selectedLevelFilter]);
@@ -140,7 +159,7 @@ export function CharacterSpellbookTab({
       school: spell.school ?? "Évocation",
       range: spell.range ?? "18 m",
       castingTime: spell.castingTime ?? "1 action",
-      components: spell.components ?? "V, S",
+      components: formatSpellComponents(spell.components),
       concentration: spell.concentration ?? false,
       description: spell.description ?? "",
     });
@@ -151,20 +170,30 @@ export function CharacterSpellbookTab({
   const handleAddSpell = () => {
     if (!newSpell.name.trim()) return;
     const spellToAdd: CharacterSpellEntry = {
-      id: `custom-spell-${Date.now()}`,
+      id: `custom-spell-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       name: newSpell.name.trim(),
       level: Number(newSpell.level),
       school: newSpell.school,
       range: newSpell.range,
       castingTime: newSpell.castingTime,
-      components: typeof newSpell.components === "string"
-        ? newSpell.components.split(",").map((c) => c.trim())
-        : newSpell.components,
+      components:
+        typeof newSpell.components === "string"
+          ? newSpell.components.split(",").map((c) => c.trim()).filter(Boolean)
+          : newSpell.components,
       concentration: newSpell.concentration,
       description: newSpell.description.trim() || "Aucune description.",
     };
     setDraftSpells((current) => [...current, spellToAdd]);
-    setNewSpell({ name: "", level: 0, school: "Évocation", range: "18 m", castingTime: "1 action", components: "V, S", concentration: false, description: "" });
+    setNewSpell({
+      name: "",
+      level: 0,
+      school: "Évocation",
+      range: "18 m",
+      castingTime: "1 action",
+      components: "V, S",
+      concentration: false,
+      description: "",
+    });
     setSearchTerm("");
     setIsCustomMode(false);
   };
@@ -173,26 +202,46 @@ export function CharacterSpellbookTab({
     setDraftSpells((current) => current.filter((spell) => spell.id !== id));
   };
 
-  const safeSlots = Array.isArray(slots) && slots.length > 0 ? slots : Array(9).fill(0);
+  const safeSlots = Array.isArray(slots) && slots.length === 9 ? slots : Array(9).fill(0);
 
   return (
-    <section className="mt-4 rounded-lg border p-4" style={{ borderColor: "var(--dnd-accent-soft)", background: "var(--dnd-surface)" }}>
-      {/* 1. Emplacements de Sorts (Slots 1 à 9) */}
+    <section
+      className="mt-4 rounded-lg border p-4"
+      style={{ borderColor: "var(--dnd-accent-soft)", background: "var(--dnd-surface)" }}
+    >
+      {/* 1. Emplacements de Sorts (Slots 1 à 9 avec dépense et recharge) */}
       <div className="mb-6">
-        <h4 className="font-semibold text-[var(--dnd-ink)]">Emplacements de Sorts</h4>
+        <div className="flex items-center justify-between">
+          <h4 className="font-semibold text-[var(--dnd-ink)]">Emplacements de Sorts</h4>
+          <span className="text-[11px] opacity-70 italic">Clic gauche : dépenser · Clic droit : recharger</span>
+        </div>
         <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-9">
           {safeSlots.map((total, index) => (
             <button
               key={`slot-${index}`}
               type="button"
-              onClick={() => setSlots((current) => (current ?? Array(9).fill(0)).map((value, slot) => (slot === index && value > 0 ? value - 1 : value)))}
-              className="group flex flex-col items-center rounded-lg border p-2 transition-all hover:border-[var(--dnd-accent)] active:scale-95"
+              onClick={() =>
+                setSlots((current) =>
+                  (current ?? Array(9).fill(0)).map((value, slot) => (slot === index && value > 0 ? value - 1 : value))
+                )
+              }
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setSlots((current) =>
+                  (current ?? Array(9).fill(0)).map((value, slot) => (slot === index ? value + 1 : value))
+                );
+              }}
+              className="group flex flex-col items-center rounded-lg border p-2 transition-all hover:border-[var(--dnd-accent)] active:scale-95 select-none"
               style={{
                 borderColor: total > 0 ? "var(--dnd-accent)" : "var(--dnd-accent-soft)",
                 background: total > 0 ? "var(--dnd-accent-soft)" : "transparent",
               }}
+              title="Clic gauche: -1 | Clic droit: +1"
             >
-              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: total > 0 ? "var(--dnd-accent)" : "var(--dnd-muted)" }}>
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider"
+                style={{ color: total > 0 ? "var(--dnd-accent)" : "var(--dnd-muted)" }}
+              >
                 Niv. {index + 1}
               </span>
               <strong className="text-lg leading-none mt-1">{total}</strong>
@@ -218,7 +267,16 @@ export function CharacterSpellbookTab({
               type="button"
               onClick={() => {
                 setIsCustomMode(!isCustomMode);
-                setNewSpell({ name: "", level: 0, school: "Évocation", range: "18 m", castingTime: "1 action", components: "V, S", concentration: false, description: "" });
+                setNewSpell({
+                  name: "",
+                  level: 0,
+                  school: "Évocation",
+                  range: "18 m",
+                  castingTime: "1 action",
+                  components: "V, S",
+                  concentration: false,
+                  description: "",
+                });
                 setSearchTerm("");
               }}
               className="text-xs font-semibold underline hover:opacity-80"
@@ -230,12 +288,12 @@ export function CharacterSpellbookTab({
 
           {!isCustomMode ? (
             <div ref={dropdownRef}>
-              {/* Filtres de niveau interactifs */}
+              {/* Filtres de niveau */}
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {[
                   { label: "Tous", value: "ALL" },
                   { label: "Tours (0)", value: "0" },
-                  ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((lvl) => ({ label: `Niv. ${lvl}`, value: String(lvl) }))
+                  ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((lvl) => ({ label: `Niv. ${lvl}`, value: String(lvl) })),
                 ].map((lvlCat) => (
                   <button
                     key={lvlCat.value}
@@ -252,7 +310,7 @@ export function CharacterSpellbookTab({
                     }`}
                     style={{
                       backgroundColor: selectedLevelFilter === lvlCat.value ? "var(--dnd-accent)" : "transparent",
-                      borderColor: "var(--dnd-accent-soft)"
+                      borderColor: "var(--dnd-accent-soft)",
                     }}
                   >
                     {lvlCat.label}
@@ -261,11 +319,14 @@ export function CharacterSpellbookTab({
               </div>
 
               <div className="mt-3 grid gap-3 sm:grid-cols-3 relative">
-                {/* Combobox de recherche textuelle avec réinitialisation de la description si vidé */}
                 <div className="relative sm:col-span-3">
                   <input
                     type="text"
-                    placeholder={selectedLevelFilter === "ALL" ? "Rechercher un sort..." : `Rechercher un sort de niveau ${selectedLevelFilter}...`}
+                    placeholder={
+                      selectedLevelFilter === "ALL"
+                        ? "Rechercher un sort..."
+                        : `Rechercher un sort de niveau ${selectedLevelFilter}...`
+                    }
                     value={searchTerm}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -279,11 +340,18 @@ export function CharacterSpellbookTab({
                     }}
                     onFocus={() => setIsDropdownOpen(true)}
                     className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                    style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}
+                    style={{
+                      borderColor: "var(--dnd-accent-soft)",
+                      backgroundColor: "var(--dnd-surface)",
+                      color: "inherit",
+                    }}
                   />
 
                   {isDropdownOpen && filteredSpells.length > 0 && (
-                    <ul className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl border shadow-lg" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)" }}>
+                    <ul
+                      className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl border shadow-lg"
+                      style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)" }}
+                    >
                       {filteredSpells.map((spell) => (
                         <li
                           key={spell.id}
@@ -292,35 +360,57 @@ export function CharacterSpellbookTab({
                         >
                           <div>
                             <span className="font-medium">{spell.name}</span>
-                            <span className="ml-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--dnd-accent-soft)] opacity-80" style={{ color: "var(--dnd-accent)" }}>
+                            <span
+                              className="ml-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--dnd-accent-soft)] opacity-80"
+                              style={{ color: "var(--dnd-accent)" }}
+                            >
                               {spell.level === 0 ? "Tour de magie" : `Niveau ${spell.level}`}
                             </span>
                           </div>
-                          {spell.school && (
-                            <span className="text-[10px] opacity-60 italic ml-2">{spell.school}</span>
-                          )}
+                          {spell.school && <span className="text-[10px] opacity-60 italic ml-2">{spell.school}</span>}
                         </li>
                       ))}
                     </ul>
                   )}
                 </div>
 
-                {/* Zone de description agrandie (hauteur rows={4}) */}
-                <textarea 
-                  placeholder="Description complète du sort..." 
-                  value={newSpell.description} 
-                  onChange={(e) => setNewSpell({ ...newSpell, description: e.target.value })} 
-                  className="rounded border bg-transparent px-2.5 py-2 text-sm sm:col-span-3 outline-none" 
-                  rows={4} 
-                  style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} 
+                <textarea
+                  placeholder="Description complète du sort..."
+                  value={newSpell.description}
+                  onChange={(e) => setNewSpell({ ...newSpell, description: e.target.value })}
+                  className="rounded border bg-transparent px-2.5 py-2 text-sm sm:col-span-3 outline-none"
+                  rows={4}
+                  style={{
+                    borderColor: "var(--dnd-accent-soft)",
+                    backgroundColor: "var(--dnd-surface)",
+                    color: "inherit",
+                  }}
                 />
               </div>
             </div>
           ) : (
-            /* Mode Custom complet (avec textarea agrandi aussi) */
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <input placeholder="Nom du sort" value={newSpell.name} onChange={(e) => setNewSpell({ ...newSpell, name: e.target.value })} className="rounded border bg-transparent px-2 py-1 text-sm outline-none" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} />
-              <select value={newSpell.level} onChange={(e) => setNewSpell({ ...newSpell, level: Number(e.target.value) })} className="rounded border bg-transparent px-2 py-1 text-sm outline-none" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}>
+              <input
+                placeholder="Nom du sort"
+                value={newSpell.name}
+                onChange={(e) => setNewSpell({ ...newSpell, name: e.target.value })}
+                className="rounded border bg-transparent px-2 py-1 text-sm outline-none"
+                style={{
+                  borderColor: "var(--dnd-accent-soft)",
+                  backgroundColor: "var(--dnd-surface)",
+                  color: "inherit",
+                }}
+              />
+              <select
+                value={newSpell.level}
+                onChange={(e) => setNewSpell({ ...newSpell, level: Number(e.target.value) })}
+                className="rounded border bg-transparent px-2 py-1 text-sm outline-none"
+                style={{
+                  borderColor: "var(--dnd-accent-soft)",
+                  backgroundColor: "var(--dnd-surface)",
+                  color: "inherit",
+                }}
+              >
                 <option value={0}>Tour de magie (Niveau 0)</option>
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((lvl) => (
                   <option key={`opt-lvl-${lvl}`} value={lvl}>
@@ -328,18 +418,68 @@ export function CharacterSpellbookTab({
                   </option>
                 ))}
               </select>
-              <input placeholder="École (ex: Évocation)" value={newSpell.school} onChange={(e) => setNewSpell({ ...newSpell, school: e.target.value })} className="rounded border bg-transparent px-2 py-1 text-sm outline-none" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} />
-              <input placeholder="Portée (ex: 18 m)" value={newSpell.range} onChange={(e) => setNewSpell({ ...newSpell, range: e.target.value })} className="rounded border bg-transparent px-2 py-1 text-sm outline-none" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} />
-              <input placeholder="Temps d'incantation" value={newSpell.castingTime} onChange={(e) => setNewSpell({ ...newSpell, castingTime: e.target.value })} className="rounded border bg-transparent px-2 py-1 text-sm outline-none" style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} />
+              <input
+                placeholder="École (ex: Évocation)"
+                value={newSpell.school}
+                onChange={(e) => setNewSpell({ ...newSpell, school: e.target.value })}
+                className="rounded border bg-transparent px-2 py-1 text-sm outline-none"
+                style={{
+                  borderColor: "var(--dnd-accent-soft)",
+                  backgroundColor: "var(--dnd-surface)",
+                  color: "inherit",
+                }}
+              />
+              <input
+                placeholder="Portée (ex: 18 m)"
+                value={newSpell.range}
+                onChange={(e) => setNewSpell({ ...newSpell, range: e.target.value })}
+                className="rounded border bg-transparent px-2 py-1 text-sm outline-none"
+                style={{
+                  borderColor: "var(--dnd-accent-soft)",
+                  backgroundColor: "var(--dnd-surface)",
+                  color: "inherit",
+                }}
+              />
+              <input
+                placeholder="Temps d'incantation"
+                value={newSpell.castingTime}
+                onChange={(e) => setNewSpell({ ...newSpell, castingTime: e.target.value })}
+                className="rounded border bg-transparent px-2 py-1 text-sm outline-none"
+                style={{
+                  borderColor: "var(--dnd-accent-soft)",
+                  backgroundColor: "var(--dnd-surface)",
+                  color: "inherit",
+                }}
+              />
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={newSpell.concentration} onChange={(e) => setNewSpell({ ...newSpell, concentration: e.target.checked })} />
+                <input
+                  type="checkbox"
+                  checked={newSpell.concentration}
+                  onChange={(e) => setNewSpell({ ...newSpell, concentration: e.target.checked })}
+                />
                 Nécessite concentration
               </label>
-              <textarea placeholder="Description complète du sort..." value={newSpell.description} onChange={(e) => setNewSpell({ ...newSpell, description: e.target.value })} className="rounded border bg-transparent px-2.5 py-2 text-sm sm:col-span-3 outline-none" rows={4} style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }} />
+              <textarea
+                placeholder="Description complète du sort..."
+                value={newSpell.description}
+                onChange={(e) => setNewSpell({ ...newSpell, description: e.target.value })}
+                className="rounded border bg-transparent px-2.5 py-2 text-sm sm:col-span-3 outline-none"
+                rows={4}
+                style={{
+                  borderColor: "var(--dnd-accent-soft)",
+                  backgroundColor: "var(--dnd-surface)",
+                  color: "inherit",
+                }}
+              />
             </div>
           )}
 
-          <button type="button" onClick={handleAddSpell} className="mt-3 rounded px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:opacity-90" style={{ background: "var(--dnd-accent)" }}>
+          <button
+            type="button"
+            onClick={handleAddSpell}
+            className="mt-3 rounded px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:opacity-90"
+            style={{ background: "var(--dnd-accent)" }}
+          >
             + Ajouter le sort
           </button>
         </div>
@@ -348,7 +488,9 @@ export function CharacterSpellbookTab({
       {/* 4. Section Collapsible : Tours de Magie */}
       {(normalizedCantrips.length > 0 || editing) && (() => {
         const cantripFilter = (levelSearches["cantrips"] ?? "").toLowerCase();
-        const filteredCantripsList = normalizedCantrips.filter((s) => s.name.toLowerCase().includes(cantripFilter) || (s.description && s.description.toLowerCase().includes(cantripFilter)));
+        const filteredCantripsList = normalizedCantrips.filter(
+          (s) => s.name.toLowerCase().includes(cantripFilter) || (s.description && s.description.toLowerCase().includes(cantripFilter))
+        );
 
         return (
           <div
@@ -388,14 +530,26 @@ export function CharacterSpellbookTab({
                     value={levelSearches["cantrips"] ?? ""}
                     onChange={(e) => handleLevelSearchChange("cantrips", e.target.value)}
                     className="w-full rounded-lg border px-2.5 py-1 text-xs outline-none mb-3"
-                    style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}
+                    style={{
+                      borderColor: "var(--dnd-accent-soft)",
+                      backgroundColor: "var(--dnd-surface)",
+                      color: "inherit",
+                    }}
                   />
                 )}
                 <div className="grid gap-3 sm:grid-cols-2">
                   {filteredCantripsList.map((spell, idx) => (
-                    <article key={`cantrip-${spell.id ?? idx}`} className="relative rounded-md border p-3 text-sm" style={{ borderColor: "var(--dnd-accent-soft)" }}>
+                    <article
+                      key={spell.id ? `cantrip-${spell.id}` : `cantrip-idx-${idx}`}
+                      className="relative rounded-md border p-3 text-sm"
+                      style={{ borderColor: "var(--dnd-accent-soft)" }}
+                    >
                       {editing && (
-                        <button type="button" onClick={() => handleRemoveSpell(spell.id)} className="absolute right-2 top-2 text-xs text-red-600 hover:underline">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSpell(spell.id)}
+                          className="absolute right-2 top-2 text-xs text-red-600 hover:underline"
+                        >
                           Supprimer
                         </button>
                       )}
@@ -425,7 +579,9 @@ export function CharacterSpellbookTab({
           }
 
           const lvlQuery = (levelSearches[`level-${level}`] ?? "").toLowerCase();
-          const filteredLevelSpells = spells.filter((s) => s.name.toLowerCase().includes(lvlQuery) || (s.description && s.description.toLowerCase().includes(lvlQuery)));
+          const filteredLevelSpells = spells.filter(
+            (s) => s.name.toLowerCase().includes(lvlQuery) || (s.description && s.description.toLowerCase().includes(lvlQuery))
+          );
 
           return (
             <div
@@ -441,7 +597,8 @@ export function CharacterSpellbookTab({
                 <div className="flex items-center gap-3">
                   <span className="font-semibold text-[var(--dnd-ink)]">Sorts de Niveau {level}</span>
                   <span className="text-xs text-[var(--dnd-muted)] font-mono">
-                    ({filteredLevelSpells.length} sort{filteredLevelSpells.length > 1 ? "s" : ""}{slotTotal > 0 ? ` • ${slotTotal} emplacement${slotTotal > 1 ? "s" : ""}` : ""})
+                    ({filteredLevelSpells.length} sort{filteredLevelSpells.length > 1 ? "s" : ""}
+                    {slotTotal > 0 ? ` • ${slotTotal} emplacement${slotTotal > 1 ? "s" : ""}` : ""})
                   </span>
                 </div>
                 <span
@@ -468,18 +625,28 @@ export function CharacterSpellbookTab({
                       value={levelSearches[`level-${level}`] ?? ""}
                       onChange={(e) => handleLevelSearchChange(`level-${level}`, e.target.value)}
                       className="w-full rounded-lg border px-2.5 py-1 text-xs outline-none mb-3"
-                      style={{ borderColor: "var(--dnd-accent-soft)", backgroundColor: "var(--dnd-surface)", color: "inherit" }}
+                      style={{
+                        borderColor: "var(--dnd-accent-soft)",
+                        backgroundColor: "var(--dnd-surface)",
+                        color: "inherit",
+                      }}
                     />
                   )}
                   <div className="grid gap-3 sm:grid-cols-2">
                     {filteredLevelSpells.map((spell, idx) => {
-                      const componentsLabel = Array.isArray(spell.components)
-                        ? spell.components.filter((entry): entry is string => typeof entry === "string").join(", ")
-                        : "Aucune";
+                      const componentsLabel = formatSpellComponents(spell.components);
                       return (
-                        <article key={`spell-item-${spell.id ?? idx}`} className="relative rounded-md border p-3 text-sm" style={{ borderColor: "var(--dnd-accent-soft)" }}>
+                        <article
+                          key={spell.id ? `spell-item-${spell.id}` : `spell-item-idx-${level}-${idx}`}
+                          className="relative rounded-md border p-3 text-sm"
+                          style={{ borderColor: "var(--dnd-accent-soft)" }}
+                        >
                           {editing && (
-                            <button type="button" onClick={() => handleRemoveSpell(spell.id)} className="absolute right-2 top-2 text-xs text-red-600 hover:underline">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSpell(spell.id)}
+                              className="absolute right-2 top-2 text-xs text-red-600 hover:underline"
+                            >
                               Supprimer
                             </button>
                           )}
@@ -506,7 +673,10 @@ export function CharacterSpellbookTab({
 
 function Tracker({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-lg border p-3 text-center" style={{ borderColor: "var(--dnd-accent-soft)", background: "var(--dnd-surface)" }}>
+    <div
+      className="rounded-lg border p-3 text-center"
+      style={{ borderColor: "var(--dnd-accent-soft)", background: "var(--dnd-surface)" }}
+    >
       <p className="text-xs" style={{ color: "var(--dnd-muted)" }}>
         {label}
       </p>

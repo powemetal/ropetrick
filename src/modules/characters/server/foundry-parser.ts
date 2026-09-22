@@ -22,6 +22,14 @@ export type ParsedFoundryCharacter = {
   subclass: string | null;
   level: number;
   stats: Prisma.InputJsonObject;
+  currency: {
+    cp: number;
+    sp: number;
+    ep: number;
+    gp: number;
+    pp: number;
+  };
+  spellSlots: Prisma.InputJsonObject;
   backstory: string | null;
   foundryActorId: string | null;
   foundryVersion: string | null;
@@ -34,25 +42,34 @@ export type ParsedFoundryCharacter = {
     range: string;
     description: string;
     concentration: boolean;
+    ritual: boolean;
+    prepared: boolean;
   }>;
   extractedFeats: Array<{
     name: string;
     description: string;
     requirements: string | null;
-    featureType: string; // "feat", "race", "class", etc.
+    featureType: string; // "feat", "race", "class", "background"
+    usesValue: number | null;
+    usesMax: number | null;
   }>;
   extractedItems: Array<{
     name: string;
     type: string;
     quantity: number;
     equipped: boolean;
+    attunement: number; // 0: none, 1: required, 2: attuned
     description: string;
     weight: number;
     price: number;
+    customData: Prisma.InputJsonObject;
   }>;
 };
 
-const asRecord = (value: unknown): JsonRecord => (typeof value === "object" && value !== null && !Array.isArray(value) ? (value as JsonRecord) : {});
+const asRecord = (value: unknown): JsonRecord =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as JsonRecord)
+    : {};
 
 const textAt = (record: JsonRecord, ...keys: string[]) => {
   let current: unknown = record;
@@ -80,7 +97,10 @@ function cleanHtmlDescription(html: string | null): string {
     .replace(/<\/div>/gi, "\n")
     .replace(/<br\s*[\/]?>/gi, "\n")
     .replace(/<[^>]*>/g, "")
-    .replace(/@(?:Item|JournalEntry|Actor|RollTable|Compendium|UUID|config|embed|variantrule|spell|creature|action|feat)\[([^|\]]+)(?:\|[^\]]+)*\]/g, "$1")
+    .replace(
+      /@(?:Item|JournalEntry|Actor|RollTable|Compendium|UUID|config|embed|variantrule|spell|creature|action|feat)\[([^|\]]+)(?:\|[^\]]+)*\]/g,
+      "$1"
+    )
     .replace(/\[\[\/damage\s+([0-9d+\s-]+)(?:\s+type=([a-z]+))?\]\]/gi, "$1 $2")
     .replace(/\[\[\/[a-z]+\s+([^\]]+)\]\]/gi, "$1")
     .replace(/&nbsp;/g, " ")
@@ -98,29 +118,88 @@ export function parseFoundryActor(rawJson: unknown): ParsedFoundryCharacter {
   const system = actor.system;
   const items = actor.items ?? [];
 
+  // 1. Détection des classes (support multiclassage et v11/v12)
+  const classItems = items.filter((item) => item.type === "class");
+  const subclassItems = items.filter((item) => item.type === "subclass");
+
   let className: string | null = null;
-  let subclass: string | null = null;
-  let calculatedLevel = 0;
+  let subclassName: string | null = null;
+  let totalCalculatedLevel = 0;
 
-  const classItem = items.find((item) => item.type === "class");
-  if (classItem) {
-    className = typeof classItem.name === "string" ? classItem.name : null;
-    const classSystem = asRecord(classItem.system);
-    calculatedLevel = numberAt(classSystem, "levels") || 1;
-    subclass = firstText(textAt(classSystem, "subclass"), textAt(classSystem, "subclassName"));
+  if (classItems.length > 0) {
+    // Si multiclassage, concatène ex: "Fighter / Cleric"
+    const classNames: string[] = [];
+    const subClassNames: string[] = [];
+
+    for (const cItem of classItems) {
+      const cSystem = asRecord(cItem.system);
+      const cName = typeof cItem.name === "string" ? cItem.name : "Inconnu";
+      const cLvl = numberAt(cSystem, "levels") || 1;
+      totalCalculatedLevel += cLvl;
+      classNames.push(`${cName} ${cLvl}`);
+
+      const inlineSubclass = firstText(
+        textAt(cSystem, "subclass"),
+        textAt(cSystem, "subclassName")
+      );
+      if (inlineSubclass) subClassNames.push(inlineSubclass);
+    }
+
+    className = classNames.join(" / ");
+
+    // Ajout des items de type "subclass" v12 si non trouvés en inline
+    for (const scItem of subclassItems) {
+      if (typeof scItem.name === "string" && !subClassNames.includes(scItem.name)) {
+        subClassNames.push(scItem.name);
+      }
+    }
+
+    subclassName = subClassNames.length > 0 ? subClassNames.join(" / ") : null;
   }
 
+  // Fallback si pas d'item de classe dédié
   if (!className) {
-    className = firstText(textAt(system, "details", "class", "name"), textAt(system, "details", "class"), textAt(asRecord(system.classes), "name"));
+    className = firstText(
+      textAt(system, "details", "class", "name"),
+      textAt(system, "details", "class"),
+      textAt(asRecord(system.classes), "name")
+    );
   }
 
-  const level = numberAt(system, "details", "level") || calculatedLevel || 1;
-
-  const race = firstText(textAt(system, "details", "race", "name"), textAt(system, "details", "race"));
+  const level = numberAt(system, "details", "level") || totalCalculatedLevel || 1;
+  const race = firstText(
+    textAt(system, "details", "race", "name"),
+    textAt(system, "details", "race")
+  );
 
   const rawBiography = textAt(system, "details", "biography", "value");
   const backstory = rawBiography ? cleanHtmlDescription(rawBiography) : null;
 
+  // 2. Extraction des devises (currency)
+  const currencyObj = asRecord(system.currency);
+  const currency = {
+    cp: numberAt(currencyObj, "cp"),
+    sp: numberAt(currencyObj, "sp"),
+    ep: numberAt(currencyObj, "ep"),
+    gp: numberAt(currencyObj, "gp"),
+    pp: numberAt(currencyObj, "pp"),
+  };
+
+  // 3. Extraction des emplacements de sorts (spell slots)
+  const rawSpells = asRecord(system.spells);
+  const spellSlots: Record<string, { value: number; max: number }> = {};
+  for (const [key, val] of Object.entries(rawSpells)) {
+    const slotRecord = asRecord(val);
+    const max = numberAt(slotRecord, "max");
+    if (max > 0 || key === "pact") {
+      spellSlots[key] = {
+        value: numberAt(slotRecord, "value"),
+        max,
+      };
+    }
+  }
+
+  // 4. Parcourt des items
   const extractedSpells: ParsedFoundryCharacter["extractedSpells"] = [];
   const extractedFeats: ParsedFoundryCharacter["extractedFeats"] = [];
   const extractedItems: ParsedFoundryCharacter["extractedItems"] = [];
@@ -139,7 +218,19 @@ export function parseFoundryActor(rawJson: unknown): ParsedFoundryCharacter {
     const plutoniumFlags = asRecord(itemFlags.plutonium);
     const dnd5eFlags = asRecord(itemFlags.dnd5e);
 
+    // Sorts
     if (currentItemType === "spell") {
+      const prepRecord = asRecord(itemSystem.preparation);
+      const isPrepared =
+        prepRecord.prepared === true ||
+        prepRecord.mode === "always" ||
+        prepRecord.mode === "innate" ||
+        prepRecord.mode === "pact";
+
+      const properties = Array.isArray(itemSystem.properties)
+        ? (itemSystem.properties as string[])
+        : Object.keys(asRecord(itemSystem.properties));
+
       extractedSpells.push({
         name: itemName,
         level: numberAt(itemSystem, "level"),
@@ -147,52 +238,109 @@ export function parseFoundryActor(rawJson: unknown): ParsedFoundryCharacter {
         castingTime: textAt(itemSystem, "activation", "type") ?? "action",
         range: textAt(itemSystem, "range", "units") ?? "self",
         description: itemDesc,
-        concentration: Array.isArray(itemSystem.properties) && itemSystem.properties.includes("concentration"),
+        concentration: properties.includes("concentration") || properties.includes("conc"),
+        ritual: properties.includes("ritual") || properties.includes("rit"),
+        prepared: isPrepared,
       });
-    } else if (currentItemType === "feat" || currentItemType === "race" || currentItemType === "class" || currentItemType === "subclass" || itemSysTypeValue === "race" || itemSysTypeValue === "class" || itemSysTypeValue === "subclass" || itemSysTypeValue === "feat") {
-      // Détermination propre du type pour le tri dans l'UI (inclut désormais les sous-classes)
+      continue;
+    }
+
+    // Capacités, Dons et Traits
+    if (
+      currentItemType === "feat" ||
+      currentItemType === "race" ||
+      currentItemType === "background" ||
+      itemSysTypeValue === "race" ||
+      itemSysTypeValue === "class" ||
+      itemSysTypeValue === "feat" ||
+      itemSysTypeValue === "background"
+    ) {
       let resolvedFeatureType = "feat";
       if (itemSysTypeValue === "race" || currentItemType === "race") {
         resolvedFeatureType = "race";
-      } else if (itemSysTypeValue === "class" || currentItemType === "class" || currentItemType === "subclass" || currentItemType === "subclass" || itemSubtypeValue === "class" || currentItemType === "subclass" || plutoniumFlags.page === "classFeature" || dnd5eFlags.isClassFeatureVariant === true) {
+      } else if (
+        itemSysTypeValue === "class" ||
+        itemSubtypeValue === "class" ||
+        plutoniumFlags.page === "classFeature" ||
+        dnd5eFlags.isClassFeatureVariant === true
+      ) {
         resolvedFeatureType = "class";
+      } else if (itemSysTypeValue === "background" || currentItemType === "background") {
+        resolvedFeatureType = "background";
       } else if (itemSubtypeValue === "origin" || itemSubtypeValue === "fightingStyle") {
         resolvedFeatureType = "feat";
       }
+
+      const usesObj = asRecord(itemSystem.uses);
+      const usesMax = numberAt(usesObj, "max");
 
       extractedFeats.push({
         name: itemName,
         description: itemDesc,
         requirements: textAt(itemSystem, "requirements"),
         featureType: resolvedFeatureType,
+        usesValue: usesMax > 0 ? numberAt(usesObj, "value") : null,
+        usesMax: usesMax > 0 ? usesMax : null,
       });
-    } else if (["weapon", "equipment", "tool", "loot", "consumable", "shield"].includes(currentItemType ?? "")) {
+      continue;
+    }
+
+    // Équipement, Armes, Armures, Consommables, Butin
+    if (
+      [
+        "weapon",
+        "equipment",
+        "tool",
+        "loot",
+        "consumable",
+        "shield",
+        "container",
+      ].includes(currentItemType ?? "")
+    ) {
       const weightObj = asRecord(itemSystem.weight);
       const priceObj = asRecord(itemSystem.price);
+      const attunementVal = numberAt(itemSystem, "attunement");
 
       extractedItems.push({
         name: itemName,
         type: currentItemType ?? "loot",
         quantity: numberAt(itemSystem, "quantity") || 1,
         equipped: itemSystem.equipped === true,
+        attunement: attunementVal, // 0 = non, 1 = requis, 2 = harmonisé
         description: itemDesc,
         weight: numberAt(weightObj, "value"),
         price: numberAt(priceObj, "value"),
+        customData: {
+          damage: itemSystem.damage,
+          properties: itemSystem.properties,
+          armor: itemSystem.armor,
+          rarity: textAt(itemSystem, "rarity"),
+        } as Prisma.InputJsonObject,
       });
     }
   }
 
+  // 5. Statistiques & Attributs
   const attributes = asRecord(system.attributes);
   const hitPoints = {
     current: numberAt(system, "attributes", "hp", "value"),
     max: numberAt(system, "attributes", "hp", "max"),
+    temp: numberAt(system, "attributes", "hp", "temp"),
   };
 
   const stats: Prisma.InputJsonObject = {
     abilities: asRecord(system.abilities) as Prisma.InputJsonObject,
     hitPoints,
-    armorClass: numberAt(system, "attributes", "ac", "value") || numberAt(system, "attributes", "ac") || 10,
-    speed: (attributes.movement as Prisma.InputJsonValue) ?? (attributes.speed as Prisma.InputJsonValue) ?? null,
+    armorClass:
+      numberAt(system, "attributes", "ac", "value") ||
+      numberAt(system, "attributes", "ac") ||
+      10,
+    speed:
+      (attributes.movement as Prisma.InputJsonValue) ??
+      (attributes.speed as Prisma.InputJsonValue) ??
+      null,
+    initiative: numberAt(attributes, "init", "total") || numberAt(attributes, "init", "value"),
+    spellSaveDc: numberAt(attributes, "spelldc") || null,
   };
 
   const rawImportData = actor as unknown as Prisma.InputJsonValue;
@@ -202,12 +350,17 @@ export function parseFoundryActor(rawJson: unknown): ParsedFoundryCharacter {
     avatarUrl: actor.img ?? null,
     race,
     class: className,
-    subclass,
+    subclass: subclassName,
     level,
     stats,
+    currency,
+    spellSlots: spellSlots as Prisma.InputJsonObject,
     backstory,
     foundryActorId: actor._id ?? null,
-    foundryVersion: textAt(actor.flags ?? {}, "core", "version") ?? textAt(actor, "_stats", "systemVersion"),
+    foundryVersion:
+      textAt(actor.flags ?? {}, "core", "version") ??
+      textAt(actor, "_stats", "systemVersion") ??
+      null,
     rawImportData,
     extractedSpells,
     extractedFeats,

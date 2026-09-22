@@ -1,16 +1,84 @@
 "use client";
 
 import { useState, useEffect, useMemo, useTransition } from "react";
-import { calculateModifier, calculateSkillBonuses, calculateSpellAttackBonus, calculateSpellSaveDc, type Ability, type AbilityScores, type Skill, type SkillProficiency } from "@/modules/characters/engine/dnd-rules-engine";
-import { asiLevelsForClass, getMulticlassEligibility, validateLevelUpChoices } from "@/modules/characters/engine/class-progression-rules";
+import {
+  calculateModifier,
+  calculateSkillBonuses,
+  calculateSpellAttackBonus,
+  calculateSpellSaveDc,
+  type Ability,
+  type AbilityScores,
+  type Skill,
+  type SkillProficiency,
+} from "@/modules/characters/engine/dnd-rules-engine";
+import {
+  asiLevelsForClass,
+  getMulticlassEligibility,
+  validateLevelUpChoices,
+} from "@/modules/characters/engine/class-progression-rules";
 import { type DndThemeKey } from "@/styles/dnd-themes";
-import { defaultScores, type CharacterSheetViewCharacter, type CharacterSpellEntry, type CharacterFeatEntry, type CharacterInventoryEntry, type CharacterNewSpellState, type CharacterNewFeatState, type CharacterNewItemState, type CharacterSheetUpdateData, type CharacterLevelUpData } from "@/modules/characters/components/sheet/shared";
-import { type SubclassOption, type LevelUpFeatOption, type LevelUpSpellOption } from "@/modules/characters/components/sheet/CharacterLevelUpModal";
-import { fetchSubclassesForClass, fetchAvailableFeats, fetchSpellsForLevelUp, fetchAvailableSpells } from "@/modules/characters/server/subclass-service";
+import {
+  defaultScores,
+  type CharacterSheetViewCharacter,
+  type CharacterSpellEntry,
+  type CharacterFeatEntry,
+  type CharacterInventoryEntry,
+  type CharacterNewSpellState,
+  type CharacterNewFeatState,
+  type CharacterNewItemState,
+  type CharacterSheetUpdateData,
+  type CharacterLevelUpData,
+} from "@/modules/characters/components/sheet/shared";
+import {
+  type SubclassOption,
+  type LevelUpFeatOption,
+  type LevelUpSpellOption,
+} from "@/modules/characters/components/sheet/CharacterLevelUpModal";
+import {
+  fetchSubclassesForClass,
+  fetchAvailableFeats,
+  fetchSpellsForLevelUp,
+  fetchAvailableSpells,
+} from "@/modules/characters/server/subclass-service";
 
-const VALID_THEMES = new Set<DndThemeKey>(["light", "dark", "barbarian", "bard", "cleric", "druid", "fighter", "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard", "artificer"]);
+const VALID_THEMES = new Set<DndThemeKey>([
+  "light",
+  "dark",
+  "barbarian",
+  "bard",
+  "cleric",
+  "druid",
+  "fighter",
+  "monk",
+  "paladin",
+  "ranger",
+  "rogue",
+  "sorcerer",
+  "warlock",
+  "wizard",
+  "artificer",
+]);
 
-const SPELLCASTER_KEYWORDS = ["magicien", "wizard", "magicienne", "ensorceleur", "sorcerer", "barde", "bard", "occultiste", "warlock", "clerc", "cleric", "druide", "druid", "paladin", "rôdeur", "ranger", "artificier", "artificer"];
+const SPELLCASTER_KEYWORDS = [
+  "magicien",
+  "wizard",
+  "magicienne",
+  "ensorceleur",
+  "sorcerer",
+  "barde",
+  "bard",
+  "occultiste",
+  "warlock",
+  "clerc",
+  "cleric",
+  "druide",
+  "druid",
+  "paladin",
+  "rôdeur",
+  "ranger",
+  "artificier",
+  "artificer",
+];
 
 const LOCAL_STORAGE_KEY = "dnd_sheet_collapsed_sections";
 
@@ -24,9 +92,13 @@ type RawFeatureEntry = {
   isPinned?: boolean;
 };
 
-const asRecord = (value: unknown): Record<string, unknown> => (typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
+const asRecord = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 
-const featureIdentity = (feature: RawFeatureEntry) => `${feature.id ?? ""}|${feature.name ?? ""}|${feature.level ?? ""}`;
+const featureIdentity = (feature: RawFeatureEntry) =>
+  `${feature.id ?? ""}|${feature.name ?? ""}|${feature.level ?? ""}`;
 
 const mergePinnedState = (feature: RawFeatureEntry, persisted: Map<string, RawFeatureEntry>) => {
   const persistedFeature = persisted.get(featureIdentity(feature));
@@ -50,14 +122,32 @@ const extractClassFeaturesFromRawImport = (rawImportData: unknown): RawFeatureEn
       const plutoniumFlags = asRecord(itemFlags.plutonium);
       const dnd5eFlags = asRecord(itemFlags.dnd5e);
 
-      return Boolean(itemType === "class" || itemSystemType.value === "class" || itemSystemType.subtype === "class" || plutoniumFlags.page === "classFeature" || dnd5eFlags.isClassFeatureVariant === true);
+      return Boolean(
+        itemType === "class" ||
+          itemSystemType.value === "class" ||
+          itemSystemType.subtype === "class" ||
+          plutoniumFlags.page === "classFeature" ||
+          dnd5eFlags.isClassFeatureVariant === true
+      );
     })
     .map((item) => {
       const system = asRecord(item.system);
       return {
-        id: typeof item._id === "string" ? item._id : typeof item.id === "string" ? item.id : undefined,
+        id:
+          typeof item._id === "string"
+            ? item._id
+            : typeof item.id === "string"
+            ? item.id
+            : undefined,
         name: typeof item.name === "string" ? item.name : "Inconnu",
-        description: typeof system.description === "object" && system.description !== null && typeof asRecord(system.description).value === "string" ? String(asRecord(system.description).value) : typeof system.description === "string" ? system.description : "",
+        description:
+          typeof system.description === "object" &&
+          system.description !== null &&
+          typeof asRecord(system.description).value === "string"
+            ? String(asRecord(system.description).value)
+            : typeof system.description === "string"
+            ? system.description
+            : "",
         level: typeof system.level === "number" ? system.level : undefined,
         featureType: "class",
         requirements: typeof system.requirements === "string" ? system.requirements : null,
@@ -76,10 +166,40 @@ const dedupeClassFeatures = (features: RawFeatureEntry[]) => {
   });
 };
 
-export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave?: (data: CharacterSheetUpdateData) => Promise<void>, onLevelUp?: (data: CharacterLevelUpData) => Promise<void>, onToggleEquip?: (inventoryItemId: string) => Promise<void>) {
-  const scores = useMemo(() => ({ ...defaultScores, ...character.abilityScores }), [character.abilityScores]);
+function parseInitialSpellSlots(rawSlots: unknown): number[] {
+  if (Array.isArray(rawSlots) && rawSlots.length === 9) {
+    return rawSlots.map((v) => Number(v) || 0);
+  }
+  if (typeof rawSlots === "object" && rawSlots !== null) {
+    const record = rawSlots as Record<string, any>;
+    return Array.from({ length: 9 }, (_, i) => {
+      const slotKey = `spell${i + 1}`;
+      const entry = record[slotKey];
+      if (typeof entry === "number") return entry;
+      if (typeof entry === "object" && entry !== null) {
+        return Number(entry.value ?? entry.max ?? 0);
+      }
+      return 0;
+    });
+  }
+  return [0, 0, 0, 0, 0, 0, 0, 0, 0];
+}
 
-  const initialTheme = character.themeKey && VALID_THEMES.has(character.themeKey as DndThemeKey) ? (character.themeKey as DndThemeKey) : "light";
+export function useCharacterSheet(
+  character: CharacterSheetViewCharacter,
+  onSave?: (data: CharacterSheetUpdateData) => Promise<void>,
+  onLevelUp?: (data: CharacterLevelUpData) => Promise<void>,
+  onToggleEquip?: (inventoryItemId: string) => Promise<void>
+) {
+  const scores = useMemo(
+    () => ({ ...defaultScores, ...character.abilityScores }),
+    [character.abilityScores]
+  );
+
+  const initialTheme =
+    character.themeKey && VALID_THEMES.has(character.themeKey as DndThemeKey)
+      ? (character.themeKey as DndThemeKey)
+      : "light";
 
   const [theme, setTheme] = useState<DndThemeKey>(initialTheme);
   const [editing, setEditing] = useState(false);
@@ -89,14 +209,25 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
   const [draftScores, setDraftScores] = useState<AbilityScores>(scores);
   const [availableSpells, setAvailableSpells] = useState<any[]>([]);
 
-  const [proficiencies, setProficiencies] = useState<Partial<Record<Skill, SkillProficiency>>>(character.skillProficiencies ?? {});
+  const [proficiencies, setProficiencies] = useState<Partial<Record<Skill, SkillProficiency>>>(
+    character.skillProficiencies ?? {}
+  );
 
-  const [hitPoints, setHitPoints] = useState(character.currentHitPoints ?? character.maxHitPoints ?? 1);
+  const [hitPoints, setHitPoints] = useState(
+    character.currentHitPoints ?? character.maxHitPoints ?? 1
+  );
   const [temporaryHitPoints, setTemporaryHitPoints] = useState(character.temporaryHitPoints ?? 0);
   const [hitDice, setHitDice] = useState(character.level);
   const [inspiration, setInspiration] = useState(false);
-  const [slots, setSlots] = useState([4, 3, 2, 0, 0, 0, 0, 0, 0]);
-  const [activeTab, setActiveTab] = useState<"spellbook" | "feats" | "inventory" | "biography">("spellbook");
+
+  // Initialisation propre des emplacements de sorts
+  const [slots, setSlots] = useState<number[]>(() =>
+    parseInitialSpellSlots((character as any).spellSlots)
+  );
+
+  const [activeTab, setActiveTab] = useState<"spellbook" | "feats" | "inventory" | "biography">(
+    "spellbook"
+  );
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     stats: false,
@@ -108,9 +239,7 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
     if (typeof window === "undefined") return;
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (saved) {
-        setCollapsed(JSON.parse(saved));
-      }
+      if (saved) setCollapsed(JSON.parse(saved));
     } catch (e) {
       console.error("Erreur de lecture du localStorage:", e);
     }
@@ -159,23 +288,24 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
     featureType: feat?.featureType ?? "feat",
   });
 
-  const normalizeFeats = (value: unknown) => (Array.isArray(value) ? value.map((feat) => normalizeFeatEntry(feat)) : []);
+  const normalizeFeats = (value: unknown) =>
+    Array.isArray(value) ? value.map((feat) => normalizeFeatEntry(feat)) : [];
 
-  // Sécurisation robuste de l'initialisation des dons
   const initialFeats: CharacterFeatEntry[] = useMemo(() => {
     const raw = (character as any).feats ?? (character as any).selectedFeats ?? [];
     return normalizeFeats(raw).filter((feat: any) => feat.featureType !== "class");
   }, [character]);
 
   const [draftFeats, setDraftFeats] = useState<CharacterFeatEntry[]>(initialFeats);
-  const [draftInventory, setDraftInventory] = useState<CharacterInventoryEntry[]>(character.inventoryItems ?? []);
+  const [draftInventory, setDraftInventory] = useState<CharacterInventoryEntry[]>(
+    character.inventoryItems ?? []
+  );
 
-  // Extraction propre des aptitudes de classe basée sur la progression réelle de la classe
   const initialClassFeatures = useMemo(() => {
     const persistedClassFeatures = new Map(
       normalizeFeats((character as any).feats ?? (character as any).selectedFeats ?? [])
         .filter((feat: any) => feat.featureType === "class")
-        .map((feat: any) => [featureIdentity(feat), feat] as const),
+        .map((feat: any) => [featureIdentity(feat), feat] as const)
     );
 
     const classLevel = Math.max(1, Number(character.level ?? 1));
@@ -190,19 +320,27 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
             level: feat.level,
             featureType: "class",
             isPinned: false,
-          }) satisfies RawFeatureEntry,
+          } satisfies RawFeatureEntry)
       );
 
-    const importedClassFeatures = normalizeFeats((character as any).levelUpFeats).filter((feat: any) => feat.featureType === "class") as RawFeatureEntry[];
-    const rawImportClassFeatures = extractClassFeaturesFromRawImport((character as any).rawImportData);
-    const merged = [...classFeatureSource, ...importedClassFeatures, ...rawImportClassFeatures].map((feat) =>
+    const importedClassFeatures = normalizeFeats((character as any).levelUpFeats).filter(
+      (feat: any) => feat.featureType === "class"
+    ) as RawFeatureEntry[];
+    const rawImportClassFeatures = extractClassFeaturesFromRawImport(
+      (character as any).rawImportData
+    );
+    const merged = [
+      ...classFeatureSource,
+      ...importedClassFeatures,
+      ...rawImportClassFeatures,
+    ].map((feat) =>
       mergePinnedState(
         {
           ...feat,
           featureType: "class",
         },
-        persistedClassFeatures,
-      ),
+        persistedClassFeatures
+      )
     );
 
     return dedupeClassFeatures(merged);
@@ -210,38 +348,39 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
 
   const [draftClassFeatures, setDraftClassFeatures] = useState<any[]>(initialClassFeatures);
 
-  // Synchronise le brouillon lorsque les données ou le mode changent pour éviter qu'elles ne disparaissent
   useEffect(() => {
     setDraftClassFeatures(initialClassFeatures);
   }, [initialClassFeatures]);
 
-  // Fonction de bascule standard (gérée en mode édition via le formulaire global)
+  // Bascule sécurisée par identifiant ou par nom (robuste face aux tirets dans les IDs)
   const handleTogglePin = (uniqueKey: string) => {
-    const lastHyphenIndex = uniqueKey.lastIndexOf("-");
-    if (lastHyphenIndex === -1) return;
-
-    const prefix = uniqueKey.substring(0, lastHyphenIndex);
-    const targetIndex = parseInt(uniqueKey.substring(lastHyphenIndex + 1), 10);
-
-    if (isNaN(targetIndex)) return;
-
-    if (prefix.startsWith("class-trait")) {
+    if (uniqueKey.startsWith("class-trait-")) {
+      const targetId = uniqueKey.replace(/^class-trait-/, "");
       setDraftClassFeatures((current) =>
         current.map((feat: any, idx: number) => {
-          if (idx === targetIndex) {
+          const match =
+            feat.id === targetId ||
+            `${feat.id ?? idx}-${idx}` === targetId ||
+            uniqueKey.endsWith(`-${idx}`);
+          if (match) {
             return { ...feat, isPinned: !feat.isPinned };
           }
           return feat;
-        }),
+        })
       );
     } else {
+      const cleanKey = uniqueKey.replace(/^(racial|acquired)-/, "");
       setDraftFeats((current) =>
         current.map((feat: any, idx: number) => {
-          if (idx === targetIndex) {
+          const match =
+            feat.id === cleanKey ||
+            `${feat.id ?? idx}-${idx}` === cleanKey ||
+            uniqueKey.endsWith(`-${idx}`);
+          if (match) {
             return { ...feat, isPinned: !feat.isPinned };
           }
           return feat;
-        }),
+        })
       );
     }
   };
@@ -257,7 +396,11 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
     description: "",
   });
 
-  const [newFeat, setNewFeat] = useState<CharacterNewFeatState>({ name: "", category: "GENERAL", description: "" });
+  const [newFeat, setNewFeat] = useState<CharacterNewFeatState>({
+    name: "",
+    category: "GENERAL",
+    description: "",
+  });
 
   const [newItem, setNewItem] = useState<CharacterNewItemState>({
     name: "",
@@ -309,14 +452,22 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
   const [pending, startTransition] = useTransition();
   const [equipPendingId, setEquipPendingId] = useState<string | null>(null);
 
-  const hasSubclass = Boolean(character.subclassName || character.subclassId || (character as any).subclass?.name || draftSubclass);
+  const hasSubclass = Boolean(
+    character.subclassName ||
+      character.subclassId ||
+      (character as any).subclass?.name ||
+      draftSubclass
+  );
 
   const targetLevel = character.level + 1;
   const maxSpellLevel = Math.min(9, Math.ceil(targetLevel / 2));
 
   const isSpellcaster = useMemo(() => {
     const c = (character.className ?? "").toLowerCase();
-    return Boolean(character.dndClass?.spellcastingAbility) || SPELLCASTER_KEYWORDS.some((k) => c.includes(k));
+    return (
+      Boolean(character.dndClass?.spellcastingAbility) ||
+      SPELLCASTER_KEYWORDS.some((k) => c.includes(k))
+    );
   }, [character.dndClass, character.className]);
 
   useEffect(() => {
@@ -339,7 +490,9 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
   const skillBonuses = calculateSkillBonuses(displayedScores, proficiencies, character.level);
   const maxHitPoints = character.maxHitPoints ?? 1;
 
-  const abilityForSpellcasting: Ability = character.dndClass?.spellcastingAbility ? (character.dndClass.spellcastingAbility.toLowerCase() as Ability) : "intelligence";
+  const abilityForSpellcasting: Ability = character.dndClass?.spellcastingAbility
+    ? (character.dndClass.spellcastingAbility.toLowerCase() as Ability)
+    : "intelligence";
 
   const spellcastingModifier = calculateModifier(displayedScores[abilityForSpellcasting] ?? 10);
   const spellSaveDc = calculateSpellSaveDc(spellcastingModifier, character.level);
@@ -347,22 +500,39 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
 
   const activeSpells = editing ? draftSpells : initialSpells;
   const cantrips = useMemo(() => activeSpells.filter((s) => s.level === 0), [activeSpells]);
-  const leveledSpells = useMemo(() => activeSpells.filter((s) => s.level > 0).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)), [activeSpells]);
+  const leveledSpells = useMemo(
+    () =>
+      activeSpells
+        .filter((s) => s.level > 0)
+        .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
+    [activeSpells]
+  );
 
   const activeFeats = editing ? draftFeats : initialFeats;
-  const activeInventory = editing ? draftInventory : (character.inventoryItems ?? []);
+  const activeInventory = editing ? draftInventory : character.inventoryItems ?? [];
 
   const classFeaturesAtLevel = editing ? draftClassFeatures : initialClassFeatures;
 
-  const legalAsiLevels = useMemo(() => [...asiLevelsForClass(character.className)] as number[], [character.className]);
+  const legalAsiLevels = useMemo(
+    () => [...asiLevelsForClass(character.className)] as number[],
+    [character.className]
+  );
 
-  const multiclassEligibility = useMemo(() => getMulticlassEligibility(character.className, newClassName || null, displayedScores), [character.className, newClassName, displayedScores]);
+  const multiclassEligibility = useMemo(
+    () => getMulticlassEligibility(character.className, newClassName || null, displayedScores),
+    [character.className, newClassName, displayedScores]
+  );
 
   const cycleSkill = (skill: Skill) => {
     if (!editing) return;
     setProficiencies((current) => ({
       ...current,
-      [skill]: current[skill] === undefined ? "PROFICIENT" : current[skill] === "PROFICIENT" ? "EXPERTISE" : "NONE",
+      [skill]:
+        current[skill] === undefined
+          ? "PROFICIENT"
+          : current[skill] === "PROFICIENT"
+          ? "EXPERTISE"
+          : "NONE",
     }));
   };
 
@@ -399,6 +569,14 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
           })),
         ];
 
+        // Formatage des emplacements de sorts pour persistance
+        const formattedSlots: Record<string, { value: number; max: number }> = {};
+        slots.forEach((val, idx) => {
+          if (val > 0) {
+            formattedSlots[`spell${idx + 1}`] = { value: val, max: val };
+          }
+        });
+
         await onSave({
           name: draftName.trim(),
           class: draftClass.trim() || null,
@@ -407,12 +585,14 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
           skillProficiencies: proficiencies,
           themeKey: theme,
           notebookTheme: theme,
+          spellSlots: formattedSlots,
           ...wealth,
           ...biography,
           spells: draftSpells,
           feats: featsToSave,
           inventoryItems: draftInventory,
         });
+
         setEditing(false);
         setError(null);
       } catch (err) {
@@ -465,7 +645,17 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
     if (!isSpellcaster) return 0;
     const c = (character.className ?? "").toLowerCase();
     if (c.includes("magicien") || c.includes("wizard")) return 2;
-    if (c.includes("ensorceleur") || c.includes("sorcerer") || c.includes("barde") || c.includes("bard") || c.includes("occultiste") || c.includes("warlock") || c.includes("rôdeur") || c.includes("ranger")) return 1;
+    if (
+      c.includes("ensorceleur") ||
+      c.includes("sorcerer") ||
+      c.includes("barde") ||
+      c.includes("bard") ||
+      c.includes("occultiste") ||
+      c.includes("warlock") ||
+      c.includes("rôdeur") ||
+      c.includes("ranger")
+    )
+      return 1;
     return 0;
   }, [isSpellcaster, character.className]);
 

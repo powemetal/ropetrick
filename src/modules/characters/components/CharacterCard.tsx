@@ -9,12 +9,16 @@ type CharacterCardProps = {
     avatarUrl: string | null;
     class: string | null;
     level: number;
-    stats: Prisma.JsonValue;
+    currentHitPoints?: number | null;
+    maxHitPoints?: number | null;
+    armorClass?: number | null;
+    stats?: Prisma.JsonValue;
     campaignLinks?: { campaign: { id: string; title: string } }[];
   };
 };
 
-const getNumber = (value: Prisma.JsonValue, ...keys: string[]) => {
+const getNumber = (value: Prisma.JsonValue | undefined, ...keys: string[]): number | null => {
+  if (!value) return null;
   let current: Prisma.JsonValue = value;
   for (const key of keys) {
     if (typeof current !== "object" || current === null || Array.isArray(current)) return null;
@@ -189,19 +193,21 @@ function getClassTheme(className: string | null) {
 }
 
 export async function CharacterCard({ character }: CharacterCardProps) {
-  const hitPoints = getNumber(character.stats, "hitPoints", "current");
-  const maxHitPoints = getNumber(character.stats, "hitPoints", "max");
-  const armorClass = getNumber(character.stats, "armorClass");
-  
-  // Génération de l'URL signée asynchrone pour la carte
+  // Priorité absolue aux colonnes directes du modèle Prisma, fallback sur stats
+  const hitPoints =
+    character.currentHitPoints ?? getNumber(character.stats, "hitPoints", "current");
+  const maxHitPoints =
+    character.maxHitPoints ?? getNumber(character.stats, "hitPoints", "max");
+  const armorClass = character.armorClass ?? getNumber(character.stats, "armorClass");
+
   const avatarSignedUrl = await getAvatarSignedUrl(character.avatarUrl);
 
   const theme = getClassTheme(character.class);
   const activeCampaign = character.campaignLinks?.[0]?.campaign;
 
   return (
-    <Link 
-      href={`/characters/${character.id}`} 
+    <Link
+      href={`/characters/${character.id}`}
       className={`group relative flex min-h-52 flex-col justify-between rounded-2xl border-2 ${theme.border} ${theme.cardBg} p-6 shadow-xl transition-all duration-300 hover:-translate-y-1.5 ${theme.glow}`}
     >
       <div>
@@ -210,7 +216,11 @@ export async function CharacterCard({ character }: CharacterCardProps) {
             <div className="relative shrink-0">
               {avatarSignedUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatarSignedUrl} alt="" className="h-16 w-16 rounded-2xl object-cover border-2 border-white/20 shadow-lg" />
+                <img
+                  src={avatarSignedUrl}
+                  alt={character.name}
+                  className="h-16 w-16 rounded-2xl object-cover border-2 border-white/20 shadow-lg"
+                />
               ) : (
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-stone-800 text-2xl font-black text-amber-400 border-2 border-white/20 shadow-lg">
                   {character.name.charAt(0).toUpperCase()}
@@ -222,7 +232,10 @@ export async function CharacterCard({ character }: CharacterCardProps) {
             </div>
 
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-xl font-black tracking-wide text-white group-hover:text-amber-300 transition-colors" title={character.name}>
+              <h2
+                className="truncate text-xl font-black tracking-wide text-white group-hover:text-amber-300 transition-colors"
+                title={character.name}
+              >
                 {character.name}
               </h2>
               <p className="truncate text-sm font-medium text-stone-300" title={character.class ?? "Aventurier"}>
@@ -231,21 +244,35 @@ export async function CharacterCard({ character }: CharacterCardProps) {
             </div>
           </div>
 
-          <span className={`shrink-0 inline-flex items-center px-3 py-1 text-xs uppercase tracking-wider rounded-xl shadow-md ${theme.badge}`}>
+          <span
+            className={`shrink-0 inline-flex items-center px-3 py-1 text-xs uppercase tracking-wider rounded-xl shadow-md ${theme.badge}`}
+          >
             Niv. {character.level}
           </span>
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-sm">
           <div className="rounded-xl bg-black/30 p-2.5 border border-white/10 text-center backdrop-blur-sm">
-            <span className="block text-[10px] uppercase tracking-wider text-stone-400 font-bold">Points de vie</span>
+            <span className="block text-[10px] uppercase tracking-wider text-stone-400 font-bold">
+              Points de vie
+            </span>
             <span className="text-base font-extrabold text-white">
-              {hitPoints ?? "-"} {maxHitPoints !== null ? <span className="text-xs text-stone-400 font-normal">/ {maxHitPoints}</span> : ""}
+              {hitPoints !== null && hitPoints !== undefined ? hitPoints : "-"}
+              {maxHitPoints !== null && maxHitPoints !== undefined ? (
+                <span className="text-xs text-stone-400 font-normal"> / {maxHitPoints}</span>
+              ) : (
+                ""
+              )}
             </span>
           </div>
+
           <div className="rounded-xl bg-black/30 p-2.5 border border-white/10 text-center backdrop-blur-sm">
-            <span className="block text-[10px] uppercase tracking-wider text-stone-400 font-bold">Classe d'armure</span>
-            <span className="text-base font-extrabold text-white">{armorClass ?? "-"}</span>
+            <span className="block text-[10px] uppercase tracking-wider text-stone-400 font-bold">
+              Classe d&apos;armure
+            </span>
+            <span className="text-base font-extrabold text-white">
+              {armorClass !== null && armorClass !== undefined ? armorClass : "-"}
+            </span>
           </div>
         </div>
       </div>
@@ -253,7 +280,7 @@ export async function CharacterCard({ character }: CharacterCardProps) {
       <div className="mt-5 border-t border-white/10 pt-3 text-xs">
         {activeCampaign ? (
           <div className="flex items-center gap-2 text-stone-300">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_8px_#f59e0b] shrink-0"></span>
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_8px_#f59e0b] shrink-0" />
             <span className="truncate">
               Campagne : <strong className="font-semibold text-white">{activeCampaign.title}</strong>
             </span>

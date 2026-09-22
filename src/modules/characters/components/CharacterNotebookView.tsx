@@ -157,8 +157,8 @@ export function CharacterNotebookView({
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const activeTheme = THEMES[theme];
-  const activeNote = notebooks.find((n) => n.id === selectedId) ?? null;
-  const currentIndex = notebooks.findIndex((n) => n.id === selectedId);
+  const activeNote = notebooks.find((n) => n.id === selectedId) ?? notebooks[0] ?? null;
+  const currentIndex = notebooks.findIndex((n) => n.id === (activeNote?.id ?? selectedId));
 
   const [draft, setDraft] = useState({
     title: activeNote?.title ?? "",
@@ -166,6 +166,19 @@ export function CharacterNotebookView({
     content: activeNote?.content ?? "",
     isShared: Boolean(activeNote?.isShared),
   });
+
+  // Synchronise le brouillon lorsque la note sélectionnée ou la liste change
+  useEffect(() => {
+    if (!isEditing && activeNote) {
+      setDraft({
+        title: activeNote.title,
+        subject: activeNote.subject,
+        content: activeNote.content,
+        isShared: Boolean(activeNote.isShared),
+      });
+      if (!selectedId) setSelectedId(activeNote.id);
+    }
+  }, [activeNote, isEditing, selectedId]);
 
   // Ferme la pop-up au clic extérieur
   useEffect(() => {
@@ -217,7 +230,7 @@ export function CharacterNotebookView({
   const handleSave = () => {
     startTransition(async () => {
       const data = new FormData();
-      data.append("title", draft.title);
+      data.append("title", draft.title.trim() || "Feuillet sans titre");
       data.append("subject", draft.subject);
       data.append("content", draft.content);
       if (draft.isShared) data.append("isShared", "on");
@@ -238,6 +251,21 @@ export function CharacterNotebookView({
         } else {
           toast.error(res.message);
         }
+      }
+    });
+  };
+
+  const handleDelete = (noteId: string) => {
+    if (!deleteNoteAction) return;
+    startTransition(async () => {
+      const res = await deleteNoteAction(noteId);
+      if (res.ok) {
+        toast.success("Feuillet déchiré et détruit.");
+        const remaining = notebooks.filter((n) => n.id !== noteId);
+        setSelectedId(remaining[0]?.id ?? null);
+        setIsEditing(false);
+      } else {
+        toast.error(res.message || "Impossible de déchirer ce feuillet.");
       }
     });
   };
@@ -379,7 +407,7 @@ export function CharacterNotebookView({
 
               <ul className="space-y-1.5 text-sm">
                 {notebooks.map((note, index) => {
-                  const isSelected = note.id === selectedId;
+                  const isSelected = note.id === (activeNote?.id ?? selectedId);
                   return (
                     <li key={note.id}>
                       <button
@@ -388,7 +416,9 @@ export function CharacterNotebookView({
                         className="group flex w-full items-center justify-between rounded-md px-3 py-2 text-left transition-all"
                         style={{
                           backgroundColor: isSelected ? `${activeTheme.accentColor}25` : "transparent",
-                          borderLeft: isSelected ? `3px solid ${activeTheme.accentColor}` : "3px solid transparent",
+                          borderLeft: isSelected
+                            ? `3px solid ${activeTheme.accentColor}`
+                            : "3px solid transparent",
                           fontWeight: isSelected ? "bold" : "normal",
                           color: activeTheme.textColor,
                         }}
@@ -481,7 +511,7 @@ export function CharacterNotebookView({
                     <button
                       type="button"
                       onClick={() => setIsEditing((v) => !v)}
-                      className="flex items-center gap-1.5 rounded border px-3 py-1 text-xs font-bold shadow-xs hover:opacity-90"
+                      className="flex items-center gap-1.5 rounded border px-3 py-1 text-xs font-bold shadow-xs hover:opacity-90 transition-all"
                       style={{
                         backgroundColor: `${activeTheme.accentColor}20`,
                         borderColor: activeTheme.accentColor,
@@ -494,8 +524,9 @@ export function CharacterNotebookView({
                     {activeNote && deleteNoteAction && (
                       <button
                         type="button"
-                        onClick={() => deleteNoteAction(activeNote.id)}
-                        className="text-xs text-red-500 hover:text-red-700 underline decoration-dotted"
+                        disabled={isPending}
+                        onClick={() => handleDelete(activeNote.id)}
+                        className="text-xs text-red-500 hover:text-red-700 underline decoration-dotted disabled:opacity-50"
                       >
                         Déchirer
                       </button>
@@ -510,7 +541,7 @@ export function CharacterNotebookView({
                       value={draft.title}
                       onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                       placeholder="Titre du récit ou de la missive..."
-                      className="border-b-2 bg-transparent text-xl font-bold focus:outline-hidden"
+                      className="border-b-2 bg-transparent text-xl font-bold outline-none"
                       style={{
                         borderColor: activeTheme.accentColor,
                         color: activeTheme.textColor,
@@ -521,7 +552,7 @@ export function CharacterNotebookView({
                       value={draft.content}
                       onChange={(e) => setDraft({ ...draft, content: e.target.value })}
                       placeholder="Inscrivez les faits d'armes, malédictions ou serments..."
-                      className="resize-none border-0 bg-transparent text-base leading-relaxed placeholder:italic focus:ring-0 focus:outline-hidden"
+                      className="resize-none border-0 bg-transparent text-base leading-relaxed placeholder:italic outline-none"
                       style={{
                         color: activeTheme.textColor,
                       }}

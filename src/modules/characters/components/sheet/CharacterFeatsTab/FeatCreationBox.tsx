@@ -15,7 +15,7 @@ type FeatCreationBoxProps = {
   newFeat: CharacterNewFeatState;
   setNewFeat: (value: CharacterNewFeatState | ((current: CharacterNewFeatState) => CharacterNewFeatState)) => void;
   availableFeats: FeatOption[];
-  onAddFeat: () => void;
+  onAddFeat: (featureType?: string) => void;
 };
 
 export function FeatCreationBox({ newFeat, setNewFeat, availableFeats, onAddFeat }: FeatCreationBoxProps) {
@@ -55,6 +55,13 @@ export function FeatCreationBox({ newFeat, setNewFeat, availableFeats, onAddFeat
     });
     setSearchTerm(feat.name);
     setIsDropdownOpen(false);
+  };
+
+  const handleAddClick = () => {
+    onAddFeat(isCustomMode ? customFeatureType : "feat");
+    if (isCustomMode) {
+      setCustomFeatureType("feat");
+    }
   };
 
   return (
@@ -216,7 +223,12 @@ export function FeatCreationBox({ newFeat, setNewFeat, availableFeats, onAddFeat
         </div>
       )}
 
-      <button type="button" onClick={onAddFeat} className="mt-3 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:opacity-90" style={{ background: "var(--dnd-accent)" }}>
+      <button 
+        type="button" 
+        onClick={handleAddClick} 
+        className="mt-3 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:opacity-90" 
+        style={{ background: "var(--dnd-accent)" }}
+      >
         + Ajouter l&apos;élément
       </button>
     </div>
