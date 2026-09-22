@@ -25,7 +25,7 @@ export async function createCharacterFromFoundry(userId: string, rawJson: unknow
   ];
 
   return prisma.$transaction(async (tx) => {
-    // 1. Résolution des sorts (Batch find + fallback sort custom)
+    // 1. Résolution des sorts (Batch find + création automatique si absent)
     const spellNames = Array.from(
       new Set(parsed.extractedSpells.map((s) => s.name.trim()))
     );
@@ -42,46 +42,46 @@ export async function createCharacterFromFoundry(userId: string, rawJson: unknow
       spellMap.set(s.name.toLowerCase(), s.id);
     }
 
-const spellsToCreate: Prisma.CharacterSpellCreateWithoutCharacterInput[] = [];
-const seenSpellIds = new Set<string>();
+    const spellsToCreate: Prisma.CharacterSpellCreateWithoutCharacterInput[] = [];
+    const seenSpellIds = new Set<string>();
 
-for (const s of parsed.extractedSpells) {
-  const cleanName = s.name.trim();
-  let spellId = spellMap.get(cleanName.toLowerCase());
+    for (const s of parsed.extractedSpells) {
+      const cleanName = s.name.trim();
+      let spellId = spellMap.get(cleanName.toLowerCase());
 
-  if (!spellId) {
-    const createdSpell = await tx.spell.create({
-      data: {
-        slug: `custom-${cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`,
-        name: cleanName,
-        level: s.level,
-        school: s.school || "universal",
-        castingTime: s.castingTime || "action",
-        range: s.range || "self",
-        components: { v: true, s: true },
-        duration: "Instantanée",
-        concentration: s.concentration,
-        ritual: s.ritual,
-        description: s.description || "Sort importé de Foundry VTT.",
-        source: "Foundry Import",
-      },
-      select: { id: true },
-    });
-    spellId = createdSpell.id;
-    spellMap.set(cleanName.toLowerCase(), spellId);
-  }
+      if (!spellId) {
+        const createdSpell = await tx.spell.create({
+          data: {
+            slug: `custom-${cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`,
+            name: cleanName,
+            level: s.level,
+            school: s.school || "universal",
+            castingTime: s.castingTime || "action",
+            range: s.range || "self",
+            components: { v: true, s: true },
+            duration: "Instantanée",
+            concentration: s.concentration,
+            ritual: s.ritual,
+            description: s.description || "Sort importé de Foundry VTT.",
+            source: "Foundry Import",
+          },
+          select: { id: true },
+        });
+        spellId = createdSpell.id;
+        spellMap.set(cleanName.toLowerCase(), spellId);
+      }
 
-  if (!seenSpellIds.has(spellId)) {
-    seenSpellIds.add(spellId);
-    spellsToCreate.push({
-      spell: { connect: { id: spellId } },
-      prepared: s.prepared,
-      learned: true,
-    });
-  }
-}
+      if (!seenSpellIds.has(spellId)) {
+        seenSpellIds.add(spellId);
+        spellsToCreate.push({
+          spell: { connect: { id: spellId } },
+          prepared: s.prepared,
+          learned: true,
+        });
+      }
+    }
 
-    // 2. Résolution des items d'inventaire sans polluer EquipmentItem
+    // 2. Résolution des items d'inventaire avec liaison sur le catalogue global d'équipements
     const itemNames = Array.from(
       new Set(parsed.extractedItems.map((i) => i.name.trim()))
     );
