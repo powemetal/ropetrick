@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { Prisma, ArmorCategory } from "@prisma/client";
 import { CharacterCreateSchema, CharacterSheetUpdateSchema } from "@/modules/characters/schemas";
 import { calculateArmorClass, calculateModifier } from "@/modules/characters/engine/dnd-rules-engine";
 import { deleteStorageObject } from "@/lib/storage";
@@ -34,18 +34,24 @@ export async function createCharacter(userId: string, data: unknown) {
   const input = CharacterCreateSchema.parse(data);
   const constitutionModifier = calculateModifier(input.constitution ?? 10);
   const maxHitPoints = input.maxHitPoints ?? (input.hitDie ?? 8) + constitutionModifier;
-  const spellIds = Array.isArray((data as { spellIds?: unknown } | null | undefined)?.spellIds) ? (data as { spellIds: unknown[] }).spellIds.filter((value): value is string => typeof value === "string" && value.length > 0) : (input.selectedSpellIds ?? []);
+  const spellIds = Array.isArray((data as { spellIds?: unknown } | null | undefined)?.spellIds) 
+    ? (data as { spellIds: unknown[] }).spellIds.filter((value): value is string => typeof value === "string" && value.length > 0) 
+    : (input.selectedSpellIds ?? []);
   const { selectedSpellIds, selectedWeaponMasteryIds, selectedLanguageIds, startingEquipmentIds, ...characterInput } = input;
   const resolvedSpellIds = spellIds.length ? spellIds : (selectedSpellIds ?? []);
   
   if (resolvedSpellIds.length && input.dndClassId) {
     const dndClass = await prisma.dndClass.findUnique({ where: { id: input.dndClassId }, select: { slug: true, name: true } });
     const spells = await prisma.spell.findMany({ where: { id: { in: resolvedSpellIds } }, select: { id: true, level: true, classes: true } });
-    if (!dndClass || spells.length !== new Set(resolvedSpellIds).size || spells.some((spell) => Array.isArray(spell.classes) && spell.classes.length > 0 && !spell.classes.includes(dndClass.slug))) throw new Error("Sélection de sorts invalide pour cette classe.");
+    if (!dndClass || spells.length !== new Set(resolvedSpellIds).size || spells.some((spell) => Array.isArray(spell.classes) && spell.classes.length > 0 && !spell.classes.includes(dndClass.slug))) {
+      throw new Error("Sélection de sorts invalide pour cette classe.");
+    }
     const cantrips = spells.filter((spell) => spell.level === 0).length;
     const levelOne = spells.filter((spell) => spell.level === 1).length;
     const quotas = dndClass.slug === "wizard" ? [3, 6] : dndClass.slug === "cleric" || dndClass.slug === "druid" ? [3, Math.max(1, calculateModifier(input.wisdom ?? 10) + 1)] : dndClass.slug === "sorcerer" ? [4, 2] : dndClass.slug === "warlock" ? [2, 2] : [2, 4];
-    if (cantrips !== quotas[0] || levelOne !== quotas[1]) throw new Error(`La sélection doit contenir ${quotas[0]} tours de magie et ${quotas[1]} sorts de niveau 1.`);
+    if (cantrips !== quotas[0] || levelOne !== quotas[1]) {
+      throw new Error(`La sélection doit contenir ${quotas[0]} tours de magie et ${quotas[1]} sorts de niveau 1.`);
+    }
   }
 
   const selectedWeaponMastery = selectedWeaponMasteryIds?.length ? await prisma.weaponMasteryProperty.findMany({ where: { id: { in: selectedWeaponMasteryIds } }, select: { id: true } }) : [];
@@ -76,10 +82,23 @@ export async function createCharacter(userId: string, data: unknown) {
       constitutionMod: constitutionModifier, 
       stats: input.stats as Prisma.InputJsonValue, 
       userId, 
-      spells: resolvedSpellIds.length ? { create: resolvedSpellIds.map((spellId) => ({ spellId, prepared: true, learned: true })) } : undefined, 
+      spells: resolvedSpellIds.length ? { 
+        create: resolvedSpellIds.map((spellId) => ({ 
+          spell: { connect: { id: spellId } }, 
+          prepared: true, 
+          learned: true 
+        })) 
+      } : undefined, 
       weaponMasteries: selectedWeaponMasteryIds?.length ? { create: selectedWeaponMasteryIds.map((masteryId) => ({ masteryId })) } : undefined, 
       languages: selectedLanguageIds?.length ? { create: selectedLanguageIds.map((languageId) => ({ languageId })) } : undefined, 
-      inventoryItems: startingEquipmentIds?.length ? { create: startingEquipmentIds.map((itemId) => ({ itemId, quantity: 1, isEquipped: false })) } : undefined, 
+      // Utilisation du modèle unifié CharacterInventoryItem
+      inventory: startingEquipmentIds?.length ? { 
+        create: startingEquipmentIds.map((equipmentId) => ({ 
+          equipment: { connect: { id: equipmentId } }, 
+          quantity: 1, 
+          equipped: false 
+        })) 
+      } : undefined, 
       resources: resourceTrackers.length ? { create: resourceTrackers } : undefined 
     },
   });
@@ -90,53 +109,58 @@ export async function updateCharacter(userId: string, characterId: string, data:
   const character = await prisma.character.findFirst({ where: { id: characterId, userId } });
   if (!character) throw new Error("Character not found");
 
-  const currentInventory = await prisma.characterInventory.findMany({ where: { characterId }, include: { item: true } });
+  const currentInventory = await prisma.characterInventoryItem.findMany({ 
+    where: { characterId }, 
+    include: { equipment: true } 
+  });
   const currentInventoryById = new Map(currentInventory.map((entry) => [entry.id, entry]));
-  const incomingInventory = input.inventoryItems ?? [];
-  const incomingInventoryIds = new Set(incomingInventory.map((entry) => entry.id));
+  const incomingInventory = (input as any).inventoryItems ?? (input as any).inventory ?? [];
+  const incomingInventoryIds = new Set(incomingInventory.map((entry: any) => entry.id));
 
   return prisma.$transaction(async (transaction) => {
     const itemsToDelete = currentInventory.filter((entry) => !incomingInventoryIds.has(entry.id)).map((entry) => entry.id);
     if (itemsToDelete.length) {
-      await transaction.characterInventory.deleteMany({ where: { characterId, id: { in: itemsToDelete } } });
+      await transaction.characterInventoryItem.deleteMany({ where: { characterId, id: { in: itemsToDelete } } });
     }
 
     for (const inventoryItem of incomingInventory) {
       const currentEntry = currentInventoryById.get(inventoryItem.id);
-      const incomingItem = inventoryItem.item;
-      const itemIsTemporary = inventoryItem.id.startsWith("temp-") || incomingItem.id.startsWith("temp-") || !currentEntry;
+      const incomingItem = inventoryItem.item ?? inventoryItem.equipment;
+      const isTemporary = !inventoryItem.id || inventoryItem.id.startsWith("temp-") || !currentEntry;
 
-      if (itemIsTemporary) {
-        const newItem = await transaction.equipmentItem.create({
+      if (isTemporary) {
+        // Résolution de l'item sans polluer la table EquipmentItem
+        let equipmentId: string | null = null;
+        if (incomingItem?.id && !incomingItem.id.startsWith("temp-")) {
+          const matched = await transaction.equipmentItem.findUnique({ where: { id: incomingItem.id }, select: { id: true } });
+          equipmentId = matched?.id ?? null;
+        }
+
+        await transaction.characterInventoryItem.create({
           data: {
-            slug: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            name: incomingItem.name,
-            category: incomingItem.category,
-            description: incomingItem.name,
-            type: incomingItem.type,
-            costGp: incomingItem.costGp,
-            weightLb: incomingItem.weightLb,
-            armorClass: incomingItem.armorClass,
-            properties: [],
+            characterId,
+            equipmentId,
+            customName: equipmentId ? null : (incomingItem?.name || inventoryItem.name || "Objet sans nom"),
+            quantity: inventoryItem.quantity ?? 1,
+            equipped: inventoryItem.equipped ?? inventoryItem.isEquipped ?? false,
+            notes: incomingItem?.description ?? inventoryItem.notes ?? null,
           },
-        });
-
-        await transaction.characterInventory.create({
-          data: { characterId, itemId: newItem.id, quantity: inventoryItem.quantity, isEquipped: false },
         });
         continue;
       }
 
       if (currentEntry) {
-        await transaction.characterInventory.update({
+        await transaction.characterInventoryItem.update({
           where: { id: currentEntry.id },
-          data: { quantity: inventoryItem.quantity, isEquipped: inventoryItem.isEquipped },
+          data: { 
+            quantity: inventoryItem.quantity ?? currentEntry.quantity, 
+            equipped: inventoryItem.equipped !== undefined ? inventoryItem.equipped : (inventoryItem.isEquipped !== undefined ? inventoryItem.isEquipped : currentEntry.equipped),
+            notes: inventoryItem.notes !== undefined ? inventoryItem.notes : currentEntry.notes,
+          },
         });
       }
     }
 
-    // Extraction sécurisée des dons : on ne met à jour selectedFeats que si input.feats ou input.selectedFeats 
-    // a été explicitement fourni et n'est pas undefined. S'ils sont absents de la requête partielle, on conserve l'existant.
     const resolvedFeats = (input as any).feats !== undefined 
       ? (input as any).feats 
       : (input.selectedFeats !== undefined ? input.selectedFeats : undefined);
@@ -160,6 +184,9 @@ export async function updateCharacter(userId: string, characterId: string, data:
         wisdomMod: calculateModifier(input.wisdom ?? character.wisdom),
         charismaMod: calculateModifier(input.charisma ?? character.charisma),
         skillProficiencies: (input.skillProficiencies ?? character.skillProficiencies) as Prisma.InputJsonValue,
+        spellSlots: (input as any).spellSlots !== undefined 
+          ? ((input as any).spellSlots as Prisma.InputJsonValue) 
+          : (character.spellSlots as Prisma.InputJsonValue),
         themeKey: input.themeKey ?? character.themeKey,
         notebookTheme: (input as any).notebookTheme ?? character.notebookTheme,
         copperPieces: input.copperPieces ?? character.copperPieces,
@@ -174,8 +201,6 @@ export async function updateCharacter(userId: string, characterId: string, data:
         appearance: input.appearance !== undefined ? input.appearance : character.appearance,
         backstory: input.backstory !== undefined ? input.backstory : character.backstory,
         alliesOrganizations: input.alliesOrganizations !== undefined ? input.alliesOrganizations : character.alliesOrganizations,
-        
-        // Sécurisation anti-wipe robuste : si resolvedFeats est undefined, on garde impérativement character.selectedFeats
         selectedFeats: resolvedFeats !== undefined 
           ? (resolvedFeats as Prisma.InputJsonValue) 
           : (character.selectedFeats as Prisma.InputJsonValue),
@@ -221,7 +246,17 @@ export async function getSkillDefinitions() {
 export async function getCharacterById(characterId: string, userId: string) {
   const character = await prisma.character.findFirst({
     where: { id: characterId, userId },
-    include: { notebooks: { orderBy: { updatedAt: "desc" }, include: { attachments: true } }, campaignLinks: { include: { campaign: { select: { id: true, title: true } } } }, spells: { include: { spell: true } }, inventoryItems: { include: { item: true } }, dndClass: { include: { classFeatures: { where: { level: { lte: 20 } }, orderBy: [{ level: "asc" }, { name: "asc" }] } } }, dndSubclass: { select: { id: true, name: true, description: true } }, resources: true, languages: { include: { language: true } }, background: { include: { originFeat: true } } },
+    include: { 
+      notebooks: { orderBy: { updatedAt: "desc" }, include: { attachments: true } }, 
+      campaignLinks: { include: { campaign: { select: { id: true, title: true } } } }, 
+      spells: { include: { spell: true } }, 
+      inventory: { include: { equipment: true } }, 
+      dndClass: { include: { classFeatures: { where: { level: { lte: 20 } }, orderBy: [{ level: "asc" }, { name: "asc" }] } } }, 
+      dndSubclass: { select: { id: true, name: true, description: true } }, 
+      resources: true, 
+      languages: { include: { language: true } }, 
+      background: { include: { originFeat: true } } 
+    },
   });
   if (!character) return null;
 
@@ -231,25 +266,90 @@ export async function getCharacterById(characterId: string, userId: string) {
   const levelUpFeats = selectedFeatNames.length ? await prisma.feats.findMany({ where: { name: { in: selectedFeatNames } } }) : [];
   const spells = character.spells.map(({ spell }) => ({ ...spell }));
 
-  return { ...character, selectedFeats, rawImportData, spells, levelUpFeats };
+  const inventoryItems = character.inventory.map((inv) => ({
+    id: inv.id,
+    characterId: inv.characterId,
+    itemId: inv.equipmentId ?? inv.id,
+    quantity: inv.quantity,
+    isEquipped: inv.equipped,
+    item: inv.equipment ?? {
+      id: inv.id,
+      slug: `custom-${inv.id}`,
+      name: inv.customName ?? "Objet sans nom",
+      category: "gear",
+      description: inv.notes ?? "",
+      type: "GEAR",
+      costGp: 0,
+      weightLb: 0,
+      armorClass: null,
+      properties: [],
+    },
+  }));
+
+  return { ...character, selectedFeats, rawImportData, spells, levelUpFeats, inventoryItems };
 }
 
 export async function toggleCharacterInventoryEquipped(userId: string, characterId: string, inventoryItemId: string) {
   const character = await prisma.character.findFirst({ where: { id: characterId, userId }, select: { id: true, dexterity: true } });
   if (!character) throw new Error("Character not found");
-  const inventoryItem = await prisma.characterInventory.findFirst({ where: { id: inventoryItemId, characterId }, include: { item: true } });
-  if (!inventoryItem) throw new Error("Inventory item not found");
-  if (inventoryItem.item.type !== "ARMOR" && inventoryItem.item.type !== "SHIELD") throw new Error("Seuls les armures et boucliers peuvent être équipés.");
-  const nextEquipped = !inventoryItem.isEquipped;
-  await prisma.$transaction(async (tx) => {
-    if (nextEquipped) await tx.characterInventory.updateMany({ where: { characterId, isEquipped: true, item: { type: inventoryItem.item.type } }, data: { isEquipped: false } });
-    await tx.characterInventory.update({ where: { id: inventoryItemId }, data: { isEquipped: nextEquipped } });
+
+  const inventoryItem = await prisma.characterInventoryItem.findFirst({ 
+    where: { id: inventoryItemId, characterId }, 
+    include: { equipment: true } 
   });
-  const equippedItems = await prisma.characterInventory.findMany({ where: { characterId, isEquipped: true }, include: { item: true } });
-  const armor = equippedItems.find((entry) => entry.item.type === "ARMOR");
-  const shield = equippedItems.find((entry) => entry.item.type === "SHIELD");
-  const armorClass = calculateArmorClass({ dexterityModifier: calculateModifier(character.dexterity), armorCategory: (armor?.item.armorCategory ?? "NONE") as "NONE" | "LIGHT" | "MEDIUM" | "HEAVY", armorBaseClass: armor?.item.armorClass ?? undefined, armorDexCap: armor?.item.dexterityBonusMax, shieldBonus: shield?.item.shieldBonus ?? 0 });
-  return prisma.character.update({ where: { id: characterId }, data: { armorClass } });
+  if (!inventoryItem) throw new Error("Inventory item not found");
+
+  const itemType = inventoryItem.equipment?.type;
+  if (itemType !== "ARMOR" && itemType !== "SHIELD") {
+    throw new Error("Seuls les armures et boucliers peuvent être équipés.");
+  }
+
+  const nextEquipped = !inventoryItem.equipped;
+
+  await prisma.$transaction(async (tx) => {
+    if (nextEquipped) {
+      await tx.characterInventoryItem.updateMany({ 
+        where: { characterId, equipped: true, equipment: { type: itemType } }, 
+        data: { equipped: false } 
+      });
+    }
+    await tx.characterInventoryItem.update({ 
+      where: { id: inventoryItemId }, 
+      data: { equipped: nextEquipped } 
+    });
+  });
+
+  const equippedItems = await prisma.characterInventoryItem.findMany({ 
+    where: { characterId, equipped: true }, 
+    include: { equipment: true } 
+  });
+
+  const armor = equippedItems.find((entry) => entry.equipment?.type === "ARMOR");
+  const shield = equippedItems.find((entry) => entry.equipment?.type === "SHIELD");
+
+  const armorCategory = (armor?.equipment?.armorCategory ?? "NONE") as ArmorCategory;
+  const armorBaseClass = armor?.equipment?.armorClass ?? 10;
+  const armorDexCap = armor?.equipment?.dexterityBonusMax ?? null;
+  const shieldBonus = shield?.equipment?.shieldBonus ?? 0;
+
+  const armorClass = calculateArmorClass({ 
+    dexterityModifier: calculateModifier(character.dexterity), 
+    armorCategory: armorCategory as "NONE" | "LIGHT" | "MEDIUM" | "HEAVY", 
+    armorBaseClass: armorBaseClass, 
+    armorDexCap: armorDexCap ?? undefined, 
+    shieldBonus 
+  });
+
+  return prisma.character.update({ 
+    where: { id: characterId }, 
+    data: { 
+      armorClass,
+      armorCategory,
+      armorBaseClass,
+      armorDexCap,
+      shieldBonus
+    } 
+  });
 }
 
 export async function deleteCharacter(characterId: string, userId: string) {

@@ -34,47 +34,45 @@ type CharacterSheetProps = {
   onUpdateTheme?: (themeKey: string) => Promise<void>;
 };
 
-export function CharacterSheet({ characterId, character, onSave, onLevelUp, onToggleEquip, onUpdateTheme }: CharacterSheetProps) {
+export function CharacterSheet({
+  characterId,
+  character,
+  onSave,
+  onLevelUp,
+  onToggleEquip,
+  onUpdateTheme,
+}: CharacterSheetProps) {
   const sheet = useCharacterSheet(character, onSave, onLevelUp, onToggleEquip);
-
-  // État pour afficher ou non la jolie modale de confirmation de fermeture d'édition
   const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
 
   const handleThemeChange = async (newTheme: string) => {
     const themeValue = newTheme as DndThemeKey;
-    
     sheet.setTheme(themeValue);
-    
+
     try {
       if (onUpdateTheme) {
         await onUpdateTheme(themeValue);
         return;
       }
-
       console.warn("[CharacterSheet] missing onUpdateTheme for theme change; refusing partial onSave payload");
     } catch (err) {
       console.error("Erreur lors de la sauvegarde du thème", err);
     }
   };
 
-  // Intercepte l'action de bascule du mode édition
   const handleToggleEditing = () => {
     if (sheet.editing) {
-      // Si on essaye de fermer l'édition, on déclenche notre modale personnalisée
       setShowExitConfirmModal(true);
     } else {
-      // Si on ouvre l'édition, on l'active directement
       sheet.setEditing(true);
     }
   };
 
-  // Confirmer l'enregistrement et fermer
   const handleConfirmSaveAndClose = async () => {
-    await sheet.saveChanges();
+    sheet.saveChanges();
     setShowExitConfirmModal(false);
   };
 
-  // Abandonner les modifications et fermer
   const handleDiscardAndClose = () => {
     sheet.setEditing(false);
     setShowExitConfirmModal(false);
@@ -157,12 +155,11 @@ export function CharacterSheet({ characterId, character, onSave, onLevelUp, onTo
         onToggle={() => sheet.toggleCollapsed("details")}
         maxHeightClass="max-h-[3500px]"
       >
-        {/* Barre d'onglets et bouton d'édition rapide intégrés juste au-dessus du Grimoire/Dons */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-3 mb-4" style={{ borderColor: "var(--dnd-accent-soft)" }}>
-          <nav
-            className="flex flex-wrap gap-2"
-            aria-label="Onglets de fiche"
-          >
+        <div
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-3 mb-4"
+          style={{ borderColor: "var(--dnd-accent-soft)" }}
+        >
+          <nav className="flex flex-wrap gap-2" aria-label="Onglets de fiche">
             {[
               ["spellbook", "Grimoire"],
               ["feats", "Dons & Aptitudes"],
@@ -185,7 +182,6 @@ export function CharacterSheet({ characterId, character, onSave, onLevelUp, onTo
             ))}
           </nav>
 
-          {/* Bouton d'édition rapide placé juste ici */}
           {onSave && (
             <button
               type="button"
@@ -247,6 +243,7 @@ export function CharacterSheet({ characterId, character, onSave, onLevelUp, onTo
           <CharacterBiographyTab
             biography={sheet.biography}
             setBiography={sheet.setBiography}
+            editing={sheet.editing}
           />
         )}
       </CollapsibleSection>
@@ -269,18 +266,20 @@ export function CharacterSheet({ characterId, character, onSave, onLevelUp, onTo
         </p>
       )}
 
-      {/* Belle modale de confirmation personnalisée */}
       {showExitConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div 
+          <div
             className="w-full max-w-md rounded-2xl border p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150"
-            style={{ 
-              background: "var(--dnd-surface)", 
+            style={{
+              background: "var(--dnd-surface)",
               borderColor: "var(--dnd-accent)",
-              color: "var(--dnd-ink)" 
+              color: "var(--dnd-ink)",
             }}
           >
-            <h3 className="text-base font-bold uppercase tracking-wider" style={{ color: "var(--dnd-accent)" }}>
+            <h3
+              className="text-base font-bold uppercase tracking-wider"
+              style={{ color: "var(--dnd-accent)" }}
+            >
               Quitter le mode édition ?
             </h3>
             <p className="text-sm opacity-90 leading-relaxed">

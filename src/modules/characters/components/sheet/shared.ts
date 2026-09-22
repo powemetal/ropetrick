@@ -1,4 +1,10 @@
-import type { Ability, AbilityScores, Skill, SkillProficiency, SpellcastingProgression } from "@/modules/characters/engine/dnd-rules-engine";
+import type {
+  Ability,
+  AbilityScores,
+  Skill,
+  SkillProficiency,
+  SpellcastingProgression,
+} from "@/modules/characters/engine/dnd-rules-engine";
 import type { DndThemeKey } from "@/styles/dnd-themes";
 
 export const abilityLabels: Record<Ability, string> = {
@@ -31,9 +37,35 @@ export const skillLabels: Record<Skill, string> = {
   survival: "Survie",
 };
 
-export const defaultScores: AbilityScores = { strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 10, charisma: 10 };
-export const validThemes = new Set<DndThemeKey>(["light", "dark", "barbarian", "bard", "cleric", "druid", "fighter", "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard", "artificer"]);
-export const skillCodeFor = (value: string) => value.replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase();
+export const defaultScores: AbilityScores = {
+  strength: 10,
+  dexterity: 10,
+  constitution: 10,
+  intelligence: 10,
+  wisdom: 10,
+  charisma: 10,
+};
+
+export const validThemes = new Set<DndThemeKey>([
+  "light",
+  "dark",
+  "barbarian",
+  "bard",
+  "cleric",
+  "druid",
+  "fighter",
+  "monk",
+  "paladin",
+  "ranger",
+  "rogue",
+  "sorcerer",
+  "warlock",
+  "wizard",
+  "artificer",
+]);
+
+export const skillCodeFor = (value: string) =>
+  value.replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase();
 
 export type CharacterSpellEntry = {
   id: string;
@@ -44,6 +76,7 @@ export type CharacterSpellEntry = {
   castingTime: string;
   components: unknown;
   concentration: boolean;
+  ritual?: boolean;
   description: string;
   spell?: {
     id: string;
@@ -54,6 +87,7 @@ export type CharacterSpellEntry = {
     castingTime: string;
     components: unknown;
     concentration: boolean;
+    ritual?: boolean;
     description: string;
   };
 };
@@ -61,15 +95,21 @@ export type CharacterSpellEntry = {
 export type CharacterFeatEntry = {
   id: string;
   name: string;
-  category: string;
+  category?: string;
   description: string;
-  isPinned?: boolean; // Support pour épingler le don en tant qu'aptitude clé
+  featureType?: "feat" | "race" | "class" | "background" | string;
+  requirements?: string | null;
+  level?: number;
+  isPinned?: boolean;
+  usesValue?: number | null;
+  usesMax?: number | null;
 };
 
 export type CharacterInventoryEntry = {
   id: string;
   quantity: number;
   isEquipped: boolean;
+  notes?: string | null;
   item: {
     id: string;
     name: string;
@@ -78,6 +118,7 @@ export type CharacterInventoryEntry = {
     costGp: number | null;
     weightLb: number | null;
     armorClass: number | null;
+    description?: string | null;
   };
 };
 
@@ -119,6 +160,7 @@ export type CharacterNewItemState = {
 };
 
 export type CharacterSheetViewCharacter = {
+  id?: string;
   name: string;
   className?: string | null;
   subclassName?: string | null;
@@ -135,6 +177,7 @@ export type CharacterSheetViewCharacter = {
   speed?: number;
   hitDie?: number;
   themeKey?: string | null;
+  spellSlots?: unknown;
   skillDefinitions?: { code: string; name: string; description: string; examples: string }[];
   copperPieces?: number;
   silverPieces?: number;
@@ -150,9 +193,15 @@ export type CharacterSheetViewCharacter = {
   alliesOrganizations?: string | null;
   spells?: CharacterSpellEntry[];
   inventoryItems?: CharacterInventoryEntry[];
-  dndClass?: { id?: string; slug?: string; spellcastingAbility?: string | null; spellcastingProgression?: SpellcastingProgression | null; classFeatures: { id: string; level: number; name: string; description: string }[] } | null;
+  dndClass?: {
+    id?: string;
+    slug?: string;
+    spellcastingAbility?: string | null;
+    spellcastingProgression?: SpellcastingProgression | null;
+    classFeatures: { id: string; level: number; name: string; description: string }[];
+  } | null;
   dndSubclass?: { id: string; name: string; description?: string | null } | null;
-  originFeat?: { id: string; name: string; category: string; description: string; isPinned?: boolean } | null;
+  originFeat?: { id: string; name: string; category?: string; description?: string; isPinned?: boolean } | null;
   rawImportData?: unknown;
   selectedFeats?: CharacterFeatEntry[];
   levelUpFeats?: CharacterFeatEntry[];
@@ -188,6 +237,7 @@ export type CharacterSheetUpdateData = {
   wisdom: number;
   charisma: number;
   skillProficiencies: Partial<Record<Skill, SkillProficiency>>;
+  spellSlots?: unknown;
   themeKey?: string;
   notebookTheme?: string;
   copperPieces?: number;

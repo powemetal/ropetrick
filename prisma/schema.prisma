@@ -257,6 +257,7 @@ model Character {
   charismaMod         Int                        @default(0) @map("charisma_mod")
   savingThrows        Json                       @default("{}") @map("saving_throws")
   skillProficiencies  Json                       @default("{}") @map("skill_proficiencies")
+  spellSlots          Json?                      @default("{}") @map("spell_slots")
   maxHitPoints        Int                        @default(1) @map("max_hit_points")
   currentHitPoints    Int                        @default(1) @map("current_hit_points")
   temporaryHitPoints  Int                        @default(0) @map("temporary_hit_points")
@@ -302,7 +303,6 @@ model Character {
   sessionNotes        SessionNote[]
   spells              CharacterSpell[]
   inventory           CharacterInventoryItem[]
-  inventoryItems      CharacterInventory[]
   weaponMasteries     CharacterWeaponMastery[]
   resources           CharacterResourceTracker[]
   languages           CharacterLanguage[]
@@ -356,7 +356,7 @@ model Background {
   skillProficiencies Json        @default("[]") @map("skill_proficiencies")
   toolProficiencies  Json        @default("[]") @map("tool_proficiencies")
   startingEquipment  Json        @default("[]") @map("starting_equipment")
-  originFeat         Feats?       @relation(fields: [originFeatId], references: [id], onDelete: SetNull)
+  originFeat         Feats?      @relation(fields: [originFeatId], references: [id], onDelete: SetNull)
   characters         Character[]
   sourceBookId       String?     @map("source_book_id")
   sourceBook         SourceBook? @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
@@ -525,7 +525,6 @@ model EquipmentItem {
   strengthRequirement Int?                     @map("strength_requirement")
   stealthDisadvantage Boolean                  @default(false) @map("stealth_disadvantage")
   characters          CharacterInventoryItem[]
-  characterInventories CharacterInventory[]
   sourceBookId        String?                  @map("source_book_id")
   sourceBook          SourceBook?              @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
 
@@ -555,19 +554,6 @@ model CharacterWeaponMastery {
 
   @@unique([characterId, masteryId])
   @@map("character_weapon_masteries")
-}
-
-model CharacterInventory {
-  id          String        @id @default(cuid())
-  characterId String        @map("character_id")
-  itemId      String        @map("item_id")
-  quantity    Int           @default(1)
-  isEquipped  Boolean       @default(false) @map("is_equipped")
-  character   Character     @relation(fields: [characterId], references: [id], onDelete: Cascade)
-  item        EquipmentItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
-
-  @@index([characterId])
-  @@map("character_inventories")
 }
 
 model ClassResourceDefinition {
@@ -696,15 +682,15 @@ model CharacterSpell {
 }
 
 model CharacterInventoryItem {
-  id           String         @id @default(cuid())
-  characterId  String         @map("character_id")
-  equipmentId  String?        @map("equipment_id")
-  customName   String?        @map("custom_name")
-  quantity     Int            @default(1)
-  equipped     Boolean        @default(false)
-  notes        String?
-  character    Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
-  equipment    EquipmentItem? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  id          String         @id @default(cuid())
+  characterId String         @map("character_id")
+  equipmentId String?        @map("equipment_id")
+  customName  String?        @map("custom_name")
+  quantity    Int            @default(1)
+  equipped    Boolean        @default(false)
+  notes       String?
+  character   Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  equipment   EquipmentItem? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
 
   @@index([characterId])
   @@map("character_inventory_items")
@@ -927,13 +913,13 @@ model ScheduledGame {
 }
 
 model GameAttendance {
-  id        String           @id @default(cuid())
-  gameId    String           @map("game_id")
-  userId    String           @map("user_id")
-  status    AttendanceStatus
-  comment   String?
-  game      ScheduledGame    @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id       String           @id @default(cuid())
+  gameId   String           @map("game_id")
+  userId   String           @map("user_id")
+  status   AttendanceStatus
+  comment  String?
+  game     ScheduledGame    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([gameId, userId])
   @@map("game_attendance")
@@ -989,13 +975,13 @@ model SessionLog {
 }
 
 model SessionAttendee {
-  id          String     @id @default(cuid())
-  sessionId   String     @map("session_id")
-  userId      String     @map("user_id")
-  characterId String?    @map("character_id")
-  session     SessionLog @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  id          String      @id @default(cuid())
+  sessionId   String      @map("session_id")
+  userId      String      @map("user_id")
+  characterId String?     @map("character_id")
+  session     SessionLog  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character   Character?  @relation(fields: [characterId], references: [id], onDelete: SetNull)
 
   @@unique([sessionId, userId])
   @@map("session_attendees")
