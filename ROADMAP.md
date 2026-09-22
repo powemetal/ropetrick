@@ -15,6 +15,67 @@
 - [ ] Données & Seeds :
   - [ ] Script de seed ou import pour les races, historiques et équipements du SRD 5e
 
+# Checklist - Implémentation des Personnages & Moteur d'Import
+
+## 1. Identité, Métadonnées et Informations Générales
+- [ ] Nom du personnage (`name`)
+- [ ] Avatar (`avatarUrl`)
+- [ ] Alignement (`alignment` via enum `Alignment`)
+- [ ] Niveau (`level`) et Expérience (`experiencePoints`)
+- [ ] Champs textuels de repli (`race`, `class`, `subclass`)
+- [ ] Intégration Foundry VTT (`foundryActorId`, `foundryVersion`, `rawImportData`)
+- [ ] Thèmes visuels (`themeKey`, `notebookTheme`)
+
+## 2. Relations avec le Compendium (D&D Core)
+- [ ] Espèce / Race (`speciesId`)
+- [ ] Sous-espèce (`subspeciesId`)
+- [ ] Historique (`backgroundId`)
+- [ ] Classe principale (`dndClassId`)
+- [ ] Sous-classe (`subclassId`)
+
+## 3. Caractéristiques et Modificateurs (Ability Scores)
+- [ ] Scores bruts (Force, Dextérité, Constitution, Intelligence, Sagesse, Charisme)
+- [ ] Calcul automatique ou manuel des modificateurs associés
+- [ ] Objet JSON pour les stats personnalisées (`stats`)
+
+## 4. Maîtrises, Jets et Capacités Magiques
+- [ ] État des jets de sauvegarde (`savingThrows` en JSON)
+- [ ] Niveaux de maîtrise des compétences (*None*, *Proficient*, *Expertise*) via `skillProficiencies`
+- [ ] Gestion de la grille des emplacements de sorts (`spellSlots`)
+- [ ] Statistiques de sort (`spellSaveDc`, `spellAttackBonus`)
+- [ ] État de l'inspiration (`inspiration`)
+
+## 5. Combat, Santé et Survie
+- [ ] Points de vie (Max, Actuels, Temporaires)
+- [ ] Dés de vie (Type de dé, Total, Actuels)
+- [ ] Sauvegardes contre la mort (`deathSaves`) et niveau d'épuisement (`exhaustionLevel`)
+- [ ] Défenses et déplacements (`armorClass`, `initiative`, `speed`)
+
+## 6. Équipement, Armure et Devises
+- [ ] Données détaillées d'armure (`armorCategory`, `armorBaseClass`, `armorDexCap`, `shieldBonus`)
+- [ ] Dons sélectionnés (`selectedFeats` en JSON)
+- [ ] Portefeuille (Pièces de Cuivre, Argent, Électrum, Or, Platine)
+
+## 7. Rôle-play et Éléments Narratifs (Fluff)
+- [ ] Traits de personnalité (`personalityTraits`)
+- [ ] Idéaux (`ideals`)
+- [ ] Liens (`bonds`)
+- [ ] Défauts (`flaws`)
+- [ ] Description physique (`appearance`)
+- [ ] Historique / Background narratif (`backstory`)
+- [ ] Alliés et organisations (`alliesOrganizations`)
+
+## 8. Tables Liées et Modules Avancés
+- [ ] Sorts connus et préparés (`spells` via `CharacterSpell`)
+- [ ] Inventaire physique, équipement et attunements (`inventory` via `CharacterInventoryItem`)
+- [ ] Suivi des maîtrises d'armes 2024 (`weaponMasteries` via `CharacterWeaponMastery`)
+- [ ] Options modulaires de classe : Invocations, Métamagie, Manœuvres (`optionalFeatures` via `CharacterOptionalFeature`)
+- [ ] Compteurs de ressources consommables : Rages, Ki, etc. (`resources` via `CharacterResourceTracker`)
+- [ ] Langues maîtrisées (`languages` via `CharacterLanguage`)
+- [ ] Carnets de notes personnels et pièces jointes (`notebooks`)
+- [ ] Liens de campagnes et de sessions de jeu
+
+
 ## Phase 2 : Moteur de règles pur (dnd-rules-engine)
 - [ ] Calculateur dynamique de Classe d'Armure (CA) :
   - [ ] Détection des armures et boucliers équipés (`isEquipped: true`)

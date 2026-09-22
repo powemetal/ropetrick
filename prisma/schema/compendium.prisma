@@ -1,0 +1,400 @@
+model SourceBook {
+  id               String               @id @default(cuid())
+  code             String               @unique
+  title            String
+  isOfficial       Boolean              @default(true) @map("is_official")
+  enabledByDefault Boolean              @default(true) @map("enabled_by_default")
+  species          Species[]
+  subspecies       Subspecies[]
+  backgrounds      Background[]
+  classes          DndClass[]
+  subclasses       DndSubclass[]
+  spells           Spell[]
+  feats            Feat[]
+  classFeatures    ClassFeature[]
+  optionalFeatures OptionalFeature[]   // <-- Lien inverse obligatoire ici
+  skillDefinitions SkillDefinition[]
+  equipment        EquipmentItem[]
+  monsters         Monster[]
+  campaigns        CampaignSourceBook[]
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+  deities          Deity[]
+  magicVariants    MagicVariant[]
+
+  @@map("source_books")
+}
+
+model Species {
+  id             String        @id @default(cuid())
+  slug           String        @unique
+  name           String
+  speed          Int           @default(30)
+  size           CreatureSize  @default(MEDIUM)
+  darkvision     Int?
+  traits         Json          @default("[]")
+  innateSpellIds Json          @default("[]") @map("innate_spell_ids")
+  subspecies     Subspecies[]
+  characters     Character[]
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  sourceBookId   String?       @map("source_book_id")
+  sourceBook     SourceBook?   @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
+
+  @@map("species")
+}
+
+model Subspecies {
+  id           String      @id @default(cuid())
+  speciesId    String      @map("species_id")
+  slug         String      @unique
+  name         String
+  speed        Int?
+  traits       Json        @default("[]")
+  species      Species     @relation(fields: [speciesId], references: [id], onDelete: Cascade)
+  characters   Character[]
+  sourceBookId String?     @map("source_book_id")
+  sourceBook   SourceBook? @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
+
+  @@map("subspecies")
+}
+
+model Background {
+  id                 String       @id @default(cuid())
+  slug               String       @unique
+  name               String
+  source             String       @default("XPHB")
+  page               String?
+  description        String?      @db.Text
+  abilityChoices     Json         @default("[]") @map("ability_choices")
+  originFeatId       String?      @map("origin_feat_id")
+  skillProficiencies Json         @default("[]") @map("skill_proficiencies")
+  toolProficiencies  Json         @default("[]") @map("tool_proficiencies")
+  startingEquipment  Json         @default("[]") @map("starting_equipment")
+  originFeat         Feat?        @relation(fields: [originFeatId], references: [id], onDelete: SetNull)
+  characters         Character[]
+  sourceBookId       String?      @map("source_book_id")
+  sourceBook         SourceBook?  @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
+
+  @@index([source])
+  @@map("backgrounds")
+}
+
+model Feat {
+  id               String       @id @default(cuid())
+  slug             String       @unique
+  name             String
+  source           String       @default("XPHB")
+  category         String?
+  levelRequirement Int          @default(0) @map("level_requirement")
+  prerequisite     String?      @db.Text
+  description      String?      @db.Text
+  repeatable       Boolean      @default(false)
+  backgrounds      Background[]
+  sourceBookId     String?      @map("source_book_id")
+  sourceBook       SourceBook?  @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@index([levelRequirement])
+  @@map("feats")
+}
+
+model DndClass {
+  id                        String                    @id @default(cuid())
+  slug                      String                    @unique
+  name                      String
+  hitDie                    Int                       @map("hit_die")
+  savingThrows              Json                      @default("[]") @map("saving_throws")
+  skillChoices              Int                       @default(2) @map("skill_choices")
+  skillOptions              Json                      @default("[]") @map("skill_options")
+  spellcastingAbility       AbilityScore?             @map("spellcasting_ability")
+  spellcastingProgression   SpellcastingProgression   @default(NONE) @map("spellcasting_progression")
+  
+  cantripProgression        Int[]                     @default([]) @map("cantrip_progression")
+  preparedSpellsProgression Int[]                     @default([]) @map("prepared_spells_progression")
+  spellSlotProgression      Json?                     @map("spell_slot_progression")
+  classTableGroups          Json?                     @map("class_table_groups")
+  
+  description               String?                   @db.Text
+  
+  subclasses                DndSubclass[]
+  levelFeatures             ClassLevelFeature[]
+  characters                Character[]
+  classFeatures             ClassFeature[]
+  resourceDefinitions       ClassResourceDefinition[]
+  sourceBookId              String?                   @map("source_book_id")
+  sourceBook                SourceBook?               @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
+
+  @@map("dnd_classes")
+}
+
+model DndSubclass {
+  id                  String              @id @default(cuid())
+  dndClassId          String              @map("dnd_class_id")
+  slug                String              @unique
+  name                String
+  shortName           String?             @map("short_name")
+  spellcastingAbility AbilityScore?       @map("spellcasting_ability")
+  additionalSpells    Json?               @map("additional_spells")
+  description         String?             @db.Text
+  
+  dndClass            DndClass            @relation(fields: [dndClassId], references: [id], onDelete: Cascade)
+  features            ClassLevelFeature[]
+  classFeatures       ClassFeature[]
+  characters          Character[]
+  sourceBookId        String?             @map("source_book_id")
+  sourceBook          SourceBook?         @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
+
+  @@map("dnd_subclasses")
+}
+
+model ClassLevelFeature {
+  id          String       @id @default(cuid())
+  dndClassId  String       @map("dnd_class_id")
+  subclassId  String?      @map("subclass_id")
+  level       Int
+  name        String
+  description String       @db.Text
+  dndClass    DndClass     @relation(fields: [dndClassId], references: [id], onDelete: Cascade)
+  subclass    DndSubclass? @relation(fields: [subclassId], references: [id], onDelete: Cascade)
+
+  @@unique([dndClassId, subclassId, level, name])
+  @@map("class_level_features")
+}
+
+model ClassFeature {
+  id            String       @id @default(cuid())
+  sourceBookId  String       @map("source_book_id")
+  sourceBook    SourceBook   @relation(fields: [sourceBookId], references: [id], onDelete: Cascade)
+  dndClassId    String       @map("dnd_class_id")
+  dndClass      DndClass     @relation(fields: [dndClassId], references: [id], onDelete: Cascade)
+  dndSubclassId String?      @map("dnd_subclass_id")
+  dndSubclass   DndSubclass? @relation(fields: [dndSubclassId], references: [id], onDelete: Cascade)
+  level         Int
+  name          String
+  description   String       @db.Text
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  @@index([dndClassId, level])
+  @@map("class_features")
+}
+
+model ClassResourceDefinition {
+  id             String         @id @default(cuid())
+  dndClassId     String         @map("dnd_class_id")
+  name           String
+  resetCondition ResetCondition @map("reset_condition")
+  formulaByLevel Json           @map("formula_by_level")
+  diceFormula    String?        @map("dice_formula")
+  dndClass       DndClass       @relation(fields: [dndClassId], references: [id], onDelete: Cascade)
+
+  @@index([dndClassId])
+  @@map("class_resource_definitions")
+}
+
+model Spell {
+  id              String           @id @default(cuid())
+  slug            String           @unique
+  name            String
+  source          String           @default("XPHB")
+  page            String?
+  level           Int
+  school          String
+  castingTime     String           @map("casting_time")
+  range           String
+  components      Json
+  materials       String?          @db.Text
+  duration        String
+  concentration   Boolean          @default(false)
+  ritual          Boolean          @default(false)
+  description     String           @db.Text
+  higherLevels    String?          @map("higher_levels") @db.Text
+  classes         Json             @default("[]")
+  optionalClasses Json             @default("[]") @map("optional_classes")
+  subclasses      Json             @default("[]")
+  characters      CharacterSpell[]
+  sourceBookId    String?          @map("source_book_id")
+  sourceBook      SourceBook?      @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
+
+  @@index([level])
+  @@index([school])
+  @@index([source])
+  @@map("spells")
+}
+
+model SkillDefinition {
+  id           String      @id @default(cuid())
+  code         String      @unique
+  name         String
+  ability      String
+  description  String      @db.Text
+  examples     String      @db.Text
+  sourceBookId String?     @map("source_book_id")
+  sourceBook   SourceBook? @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  @@map("skill_definitions")
+}
+
+model WeaponMasteryProperty {
+  id          String                   @id @default(cuid())
+  code        String                   @unique
+  name        String
+  description String                   @db.Text
+  items       EquipmentItem[]
+  characters  CharacterWeaponMastery[]
+  createdAt   DateTime                 @default(now()) @map("created_at")
+  updatedAt   DateTime                 @updatedAt @map("updated_at")
+
+  @@map("weapon_mastery_properties")
+}
+
+model EquipmentItem {
+  id                  String                  @id @default(cuid())
+  slug                String                  @unique
+  name                String
+  category            String
+  description         String                  @db.Text
+  weight              Float?
+  costCp              Int?                    @map("cost_cp")
+  costGp              Float?                  @map("cost_gp")
+  weightLb            Float?                  @map("weight_lb")
+  type                ItemType?
+  armorCategory       ArmorCategory?          @map("armor_category")
+  armorClass          Int?                    @map("armor_class")
+  dexterityCap        Int?                    @map("dexterity_cap")
+  dexterityBonusMax   Int?                    @map("dexterity_bonus_max")
+  shieldBonus         Int?                    @map("shield_bonus")
+  strengthRequirement Int?                    @map("strength_requirement")
+  stealthDisadvantage Boolean                 @default(false) @map("stealth_disadvantage")
+  weaponMastery       String?                 @map("weapon_mastery")
+  damageFormula       String?                 @map("damage_formula")
+  damageType          String?                 @map("damage_type")
+  properties          Json @default("[]")
+  rangeNormal         Int?                    @map("range_normal")
+  rangeLong           Int?                    @map("range_long")
+  rarity              ItemRarity              @default(MUNDANE)
+  requiresAttunement  Boolean                 @default(false) @map("requires_attunement")
+  isMagic             Boolean                 @default(false) @map("is_magic")
+  magicBonus          Int                     @default(0) @map("magic_bonus")
+  masteryPropertyId   String?                 @map("mastery_property_id")
+  masteryProperty     WeaponMasteryProperty?  @relation(fields: [masteryPropertyId], references: [id], onDelete: SetNull)
+  characters          CharacterInventoryItem[]
+  sourceBookId        String?                 @map("source_book_id")
+  sourceBook          SourceBook?             @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@map("equipment_items")
+}
+
+model Language {
+  id         String              @id @default(cuid())
+  name       String              @unique
+  script     String
+  isExotic   Boolean             @default(false) @map("is_exotic")
+  characters CharacterLanguage[]
+
+  @@map("languages")
+}
+
+model Monster {
+  id                    String       @id @default(cuid())
+  name                  String
+  slug                  String       @unique
+  size                  CreatureSize @default(MEDIUM)
+  creatureType          String       @map("creature_type")
+  subtype               String?
+  alignment             String?
+  challengeRating       String       @map("challenge_rating")
+  cr                    Float?
+  proficiencyBonus      Int          @default(2) @map("proficiency_bonus")
+  armorClass            Int          @map("armor_class")
+  armorType             String?      @map("armor_type")
+  hitPoints             Int          @map("hit_points")
+  hitDice               String?      @map("hit_dice")
+  speed                 Json         @default("{}")
+  strength              Int          @default(10)
+  dexterity             Int          @default(10)
+  constitution          Int          @default(10)
+  intelligence          Int          @default(10)
+  wisdom                Int          @default(10)
+  charisma              Int          @default(10)
+  savingThrows          Json         @default("{}") @map("saving_throws")
+  skills                Json         @default("{}")
+  damageVulnerabilities Json         @default("[]") @map("damage_vulnerabilities")
+  damageResistances     Json         @default("[]") @map("damage_resistances")
+  damageImmunities      Json         @default("[]") @map("damage_immunities")
+  conditionImmunities   Json         @default("[]") @map("condition_immunities")
+  senses                Json         @default("{}")
+  sensesText            String?      @map("senses_text")
+  passivePerception     Int?         @map("passive_perception")
+  languages             Json         @default("[]")
+  languagesText         String?      @map("languages_text")
+  traits                Json         @default("[]")
+  actions               Json         @default("[]")
+  bonusActions          Json         @default("[]") @map("bonus_actions")
+  reactions             Json         @default("[]")
+  legendaryResistances  Int          @default(0) @map("legendary_resistances")
+  legendaryActions      Json         @default("[]") @map("legendary_actions")
+  legendaryActionsCount Int          @default(0) @map("legendary_actions_count")
+  lairActions           Json         @default("[]") @map("lair_actions")
+  hasLair               Boolean      @default(false) @map("has_lair")
+  regionalEffects       Json         @default("[]") @map("regional_effects")
+  isLegendary           Boolean      @default(false) @map("is_legendary")
+  sourceBookId          String?      @map("source_book_id")
+  sourceBook            SourceBook?  @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+
+  @@index([challengeRating])
+  @@index([creatureType])
+  @@map("monsters")
+}
+
+model OptionalFeature {
+  id           String                     @id @default(cuid())
+  slug         String                     @unique
+  name         String
+  featureType  String[]                   @default([]) @map("feature_type") // EI (Invocation), MM (Metamagic), etc.
+  prerequisite Json?
+  description  String                     @db.Text
+  sourceBookId String?                    @map("source_book_id")
+  sourceBook   SourceBook?                @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
+  characters   CharacterOptionalFeature[]
+
+  @@map("optional_features")
+}
+
+model Deity {
+  id           String      @id @default(cuid())
+  slug         String      @unique
+  name         String
+  pantheon     String
+  alignment    String[]    @default([])
+  title        String?
+  domains      String[]    @default([])
+  province     String?
+  symbol       String?
+  description  String?     @db.Text
+  sourceBookId String?     @map("source_book_id")
+  sourceBook   SourceBook? @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
+
+  @@index([pantheon])
+  @@map("deities")
+}
+
+model MagicVariant {
+  id           String      @id @default(cuid())
+  slug         String      @unique
+  name         String
+  type         String?
+  rarity       String?
+  requires     Json?
+  entries      Json        @default("[]")
+  sourceBookId String?     @map("source_book_id")
+  sourceBook   SourceBook? @relation(fields: [sourceBookId], references: [id], onDelete: SetNull)
+
+  @@map("magic_variants")
+}

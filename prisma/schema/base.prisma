@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Alignment {
+  LAWFUL_GOOD
+  NEUTRAL_GOOD
+  CHAOTIC_GOOD
+  LAWFUL_NEUTRAL
+  TRUE_NEUTRAL
+  CHAOTIC_NEUTRAL
+  LAWFUL_EVIL
+  NEUTRAL_EVIL
+  CHAOTIC_EVIL
+  UNALIGNED
+}
+
+enum AbilityScore {
+  STRENGTH
+  DEXTERITY
+  CONSTITUTION
+  INTELLIGENCE
+  WISDOM
+  CHARISMA
+}
+
+enum CreatureSize {
+  TINY
+  SMALL
+  MEDIUM
+  LARGE
+  HUGE
+  GARGANTUAN
+}
+
+enum ResetCondition {
+  SHORT_REST
+  LONG_REST
+  SPECIAL
+}
+
+enum ItemType {
+  WEAPON
+  ARMOR
+  SHIELD
+  TOOL
+  GEAR
+  CONSUMABLE
+  AMMUNITION
+}
+
+enum ItemRarity {
+  MUNDANE
+  COMMON
+  UNCOMMON
+  RARE
+  VERY_RARE
+  LEGENDARY
+  ARTIFACT
+}
+
+enum ArmorCategory {
+  NONE
+  LIGHT
+  MEDIUM
+  HEAVY
+  SHIELD
+}
+
+enum SpellcastingProgression {
+  NONE
+  FULL
+  HALF
+  THIRD
+  PACT
+  ARTIFICER
+}
+
+enum SkillProficiency {
+  NONE
+  PROFICIENT
+  EXPERTISE
+}
