@@ -24,6 +24,7 @@ prisma/
     ├── equipment.ts       # Équipements de base (armes, armures, objets)
     ├── classes.ts         # Classes et sous-classes (avec liaison hiérarchique)
     ├── deities.ts         # Divinités et panthéons
+    ├── items.ts           # Importation avancée des équipements via CSV et parsing intelligent
     └── magicVariants.ts   # Variantes d'objets magiques
 ```
 
@@ -35,8 +36,8 @@ Pour garantir des performances optimales et s'affranchir des contraintes d'unici
 
 1. **Vidage global de la base (`clearDatabase`)** : 
    - Supprime l'ensemble des données en respectant l'ordre inverse des dépendances relationnelles (les tables enfants d'abord, les tables parentes ensuite) pour éviter les erreurs de clés étrangères.
-2. **Réinsertion en masse (`createMany`)** : 
-   - Exécute chaque module de seed de manière séquentielle en utilisant les insertions groupées `createMany` de Prisma. Cela réduit drastiquement les allers-retours réseau avec la base de données et permet d'exécuter l'intégralité du seed en moins de 2 secondes.
+2. 2. **Réinsertion en masse (`createMany`)** : 
+   - Exécute chaque module de seed de manière séquentielle en utilisant les insertions groupées `createMany` de Prisma (par paquets de 100 éléments pour les équipements).
 
 ---
 
@@ -65,6 +66,8 @@ npx tsx prisma/seed.ts
   Certains modules dépendent des IDs générés par d'autres (par exemple, les *Dons* retournent une `Map` pour permettre aux *Historiques* de lier leur `originFeatId`, ou les *Classes* fournissent leurs IDs pour rattacher les *Sous-classes*).
 * **Flexibilité des types JSON** : 
   Les structures complexes ou changeantes (comme les propriétés d'équipement ou les descriptions riches) sont stockées dans des colonnes de type `Json` pour éviter les erreurs de validation de schéma lors de l'import de données brutes.
+* **Parsing intelligent par Expressions Régulières (Regex)** : 
+  Pour le catalogue d'équipements (`items.ts`), un parseur avancé analyse les chaînes textuelles brutes du fichier CSV pour en extraire automatiquement les formules de dégâts, les types de dégâts, la détection des objets magiques, les bonus numériques (`+1`, `+2`), l'attunement et les propriétés converties directement en tableaux JSON.
 
 ---
 
@@ -114,38 +117,22 @@ Liste les langues parlées et leurs caractéristiques.
 
 ---
 
-## 3. items-base.json (Équipements de Base)
-Contient les armes, armures, outils et objets d'aventurier.
+## 3. Items.csv (Catalogue d'Équipements et Objets)
+Fichier au format CSV contenant le catalogue complet des objets (armes, armures, objets magiques, etc.) traité par le module `items.ts` à l'aide de parseurs Regex avancés.
 
-```json
-{
-  "baseitem": [
-    {
-      "name": "Longsword",
-      "source": "XPHB",
-      "type": "M|XPHB",
-      "weaponCategory": "martial",
-      "dmg1": "1d8",
-      "dmgType": "S",
-      "property": ["V|XPHB", { "uid": "2H|XPHB", "note": "versatile" }],
-      "weight": 3,
-      "value": 1500,
-      "mastery": ["Vex|XPHB"],
-      "entries": ["A versatile medieval sword."]
-    }
-  ]
-}
-```
-
-* **name** (String) : Nom de l'objet.
-* **source** (String) : Code du livre source (par défaut "XPHB").
-* **type** (String) : Code du type d'objet (ex: LA pour armure légère, MA pour intermédiaire, HA pour lourde, S pour bouclier, M ou R pour arme).
-* **dmg1** (String) : Formule de dégâts principale (ex: "1d8").
-* **dmgType** (String) : Type de dégâts ("S" pour slashing, "P" pour piercing, "B" pour bludgeoning).
-* **property** (Array) : Tableau de propriétés (chaînes ou objets complexes acceptés grâce au type Json en base).
-* **weight** (Number) : Poids en livres.
-* **value** (Number) : Valeur en pièces de cuivre (cp) ou valeur brute convertie.
-* **entries** (Array) : Description textuelle détaillée sous forme de paragraphes.
+**Colonnes clés du CSV et correspondance en base :**
+* `Name` : Nom de l'objet (permet d'extraire la magie et le bonus via regex, ex: `+2 Longsword`).
+* `Source` : Code du livre source de référence (synchronisé avec `SourceBook`).
+* `Page` : Numéro de page dans l'ouvrage.
+* `Rarity` : Niveau de rareté textuel converti vers l'Enum Prisma `ItemRarity`.
+* `Type` : Catégorie ou type textuel brut de l'objet.
+* `Attunement` : Condition d'harmonisation (converti en booléen `requiresAttunement`).
+* `Damage` : Formule et type de dégâts bruts (analysé par regex pour alimenter `damageFormula` et `damageType`).
+* `Properties` : Liste des propriétés de l'objet (converties et stockées sous forme de tableau `Json`).
+* `Mastery` : Propriété de maîtrise d'arme associée (`weaponMastery`).
+* `Weight` : Poids numérique de l'objet en livres (`weightLb`).
+* `Value` : Valeur financière convertie en pièces d'or (`costGp`).
+* `Text` : Description détaillée de l'objet (`description` au format texte long).
 
 ---
 

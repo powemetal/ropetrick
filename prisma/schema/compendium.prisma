@@ -255,13 +255,14 @@ model EquipmentItem {
   id                  String                  @id @default(cuid())
   slug                String                  @unique
   name                String
-  category            String
+  category            String?
+  page String?
   description         String                  @db.Text
   weight              Float?
   costCp              Int?                    @map("cost_cp")
   costGp              Float?                  @map("cost_gp")
   weightLb            Float?                  @map("weight_lb")
-  type                ItemType?
+  type                String?
   armorCategory       ArmorCategory?          @map("armor_category")
   armorClass          Int?                    @map("armor_class")
   dexterityCap        Int?                    @map("dexterity_cap")

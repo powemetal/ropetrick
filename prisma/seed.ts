@@ -9,7 +9,9 @@ import { seedSpecies } from "./seeds/species";
 import { seedBackgrounds } from "./seeds/backgrounds";
 import { seedEquipment } from "./seeds/equipment";
 import { seedClassesAndSubclasses } from "./seeds/classes";
+import { seedSpells } from "./seeds/spells";
 import { seedDeities } from "./seeds/deities";
+import { seedItems } from "./seeds/items";
 import { seedMagicVariants } from "./seeds/magicVariants";
 
 async function clearDatabase() {
@@ -42,6 +44,7 @@ async function clearDatabase() {
   await prisma.language.deleteMany();
   await prisma.deity.deleteMany();
   await prisma.magicVariant.deleteMany();
+  await prisma.spell.deleteMany();
   await prisma.sourceBook.deleteMany();
 
   console.log("✨ Base de données nettoyée avec succès.");
@@ -50,11 +53,12 @@ async function clearDatabase() {
 async function main() {
   console.log("🚀 Début du seed du Compendium...");
 
-  // 1. On vide tout d'abord
+  // 1. Vidage de la base
   await clearDatabase();
 
-  // 2. On réinsère tout de zéro
+  // 2. Réinsertion dans l'ordre logique et relationnel
   await seedSourceBooks();
+  await seedSpells(prisma);
   const masteryMap = await seedWeaponMasteries();
   await seedLanguages();
   await seedSkills();
@@ -66,6 +70,7 @@ async function main() {
   await seedClassesAndSubclasses();
   await seedDeities();
   await seedMagicVariants();
+  await seedItems(prisma);
 
   console.log("🎉 Seed terminé avec succès !");
 }
