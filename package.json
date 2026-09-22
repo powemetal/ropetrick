@@ -13,7 +13,8 @@
     "prisma:seed-compendium": "npx tsx prisma/seed-compendium.ts",
     "seed:spells": "tsx prisma/spell-seed.ts",
     "seed:feats-backgrounds": "tsx prisma/feat-background-seed.ts",
-    "seed:seed-rest": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/rest-seed.ts"
+    "seed:seed-rest": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/rest-seed.ts",
+    "postinstall": "prisma generate"
   },
   "prisma": {
     "schema": "prisma/schema",
