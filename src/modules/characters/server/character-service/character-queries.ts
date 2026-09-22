@@ -8,7 +8,8 @@ import { deleteStorageObject } from "@/lib/storage";
 
 export async function fetchAvailableFeats() {
   try {
-    const feats = await prisma.feats.findMany({ 
+    // CORRIGÉ : prisma.feats -> prisma.feat
+    const feats = await prisma.feat.findMany({ 
       select: { id: true, name: true, description: true, prerequisite: true }, 
       orderBy: { name: "asc" } 
     });
@@ -91,7 +92,6 @@ export async function createCharacter(userId: string, data: unknown) {
       } : undefined, 
       weaponMasteries: selectedWeaponMasteryIds?.length ? { create: selectedWeaponMasteryIds.map((masteryId) => ({ masteryId })) } : undefined, 
       languages: selectedLanguageIds?.length ? { create: selectedLanguageIds.map((languageId) => ({ languageId })) } : undefined, 
-      // Utilisation du modèle unifié CharacterInventoryItem
       inventory: startingEquipmentIds?.length ? { 
         create: startingEquipmentIds.map((equipmentId) => ({ 
           equipment: { connect: { id: equipmentId } }, 
@@ -129,7 +129,6 @@ export async function updateCharacter(userId: string, characterId: string, data:
       const isTemporary = !inventoryItem.id || inventoryItem.id.startsWith("temp-") || !currentEntry;
 
       if (isTemporary) {
-        // Résolution de l'item sans polluer la table EquipmentItem
         let equipmentId: string | null = null;
         if (incomingItem?.id && !incomingItem.id.startsWith("temp-")) {
           const matched = await transaction.equipmentItem.findUnique({ where: { id: incomingItem.id }, select: { id: true } });
@@ -263,7 +262,10 @@ export async function getCharacterById(characterId: string, userId: string) {
   const selectedFeats = Array.isArray(character.selectedFeats) ? character.selectedFeats : [];
   const rawImportData = character.rawImportData ?? null;
   const selectedFeatNames = selectedFeats.map((entry) => (typeof entry === "string" ? entry : (entry as any)?.name)).filter((entry): entry is string => typeof entry === "string");
-  const levelUpFeats = selectedFeatNames.length ? await prisma.feats.findMany({ where: { name: { in: selectedFeatNames } } }) : [];
+  
+  // CORRIGÉ : prisma.feats -> prisma.feat
+  const levelUpFeats = selectedFeatNames.length ? await prisma.feat.findMany({ where: { name: { in: selectedFeatNames } } }) : [];
+  
   const spells = character.spells.map(({ spell }) => ({ ...spell }));
 
   const inventoryItems = character.inventory.map((inv) => ({
