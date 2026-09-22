@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { CharacterLevelUpSchema } from "@/modules/characters/schemas";
-import { calculateModifier } from "@/modules/characters/engine/dnd-rules-engine";
+import { calculateModifier, SpellcastingProgression } from "@/modules/characters/engine/dnd-rules-engine";
 import { maxSpellLevelForProgression, spellSelectionCountForClass, validateLevelUpChoices } from "@/modules/characters/engine/class-progression-rules";
 
 export async function levelUpCharacter(userId: string, characterId: string, data: unknown) {
@@ -50,7 +50,7 @@ export async function levelUpCharacter(userId: string, characterId: string, data
       throw new Error("Sélection de sorts invalide pour cette classe.");
     }
 
-    const maxSpellLevel = maxSpellLevelForProgression(nextLevel, character.dndClass.spellcastingProgression);
+    const maxSpellLevel = maxSpellLevelForProgression(nextLevel, character.dndClass.spellcastingProgression as SpellcastingProgression);
     if (selectedSpells.some((spell) => spell.level > maxSpellLevel)) throw new Error("Un sort sélectionné dépasse le niveau de sort disponible pour cette montée de niveau.");
   }
 
