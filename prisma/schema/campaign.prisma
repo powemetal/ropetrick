@@ -1,0 +1,305 @@
+model Campaign {
+  id             String               @id @default(cuid())
+  dmId           String               @map("dm_id")
+  title          String
+  description    String               @db.Text
+  inviteCode     String               @unique @map("invite_code")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  dm             User                 @relation("CampaignDm", fields: [dmId], references: [id], onDelete: Cascade)
+  members        CampaignMember[]
+  characters     CampaignCharacter[]
+  locations      Location[]
+  npcs           NPC[]
+  shops          Shop[]
+  scheduleRules  ScheduleRule[]
+  scheduledGames ScheduledGame[]
+  notes          CampaignNote[]
+  sessionLogs    SessionLog[]
+  sourceBooks    CampaignSourceBook[]
+
+  @@map("campaigns")
+}
+
+model CampaignSourceBook {
+  campaignId   String     @map("campaign_id")
+  sourceBookId String     @map("source_book_id")
+  enabled      Boolean    @default(true)
+  campaign     Campaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  sourceBook   SourceBook @relation(fields: [sourceBookId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, sourceBookId])
+  @@map("campaign_source_books")
+}
+
+enum CampaignRole {
+  DM
+  CO_DM
+  PLAYER
+}
+
+model CampaignMember {
+  id             String       @id @default(cuid())
+  campaignId     String       @map("campaign_id")
+  userId         String       @map("user_id")
+  role           CampaignRole
+  dmPrivateNotes String?      @db.Text @map("dm_private_notes")
+  joinedAt       DateTime     @default(now()) @map("joined_at")
+  campaign       Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId])
+  @@map("campaign_members")
+}
+
+model CampaignCharacter {
+  id          String    @id @default(cuid())
+  campaignId  String    @map("campaign_id")
+  characterId String    @map("character_id")
+  playerId    String    @map("player_id")
+  isActive    Boolean   @default(true) @map("is_active")
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  player      User      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, characterId])
+  @@map("campaign_characters")
+}
+
+model Location {
+  id                String                   @id @default(cuid())
+  campaignId        String                   @map("campaign_id")
+  parentId          String?                  @map("parent_id")
+  name              String
+  description       String                   @db.Text
+  isSecretDm        Boolean                  @default(false) @map("is_secret_dm")
+  campaign          Campaign                 @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  parent            Location?                @relation("LocationHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children          Location[]               @relation("LocationHierarchy")
+  shops             Shop[]
+  visitedInSessions SessionVisitedLocation[]
+
+  @@map("locations")
+}
+
+model NPC {
+  id            String          @id @default(cuid())
+  campaignId    String          @map("campaign_id")
+  name          String
+  race          String?
+  occupation    String?
+  appearance    String          @db.Text
+  secretsDm     String?         @db.Text @map("secrets_dm")
+  isSecretDm    Boolean         @default(false) @map("is_secret_dm")
+  campaign      Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  shopsKept     Shop[]          @relation("ShopKeeper")
+  metInSessions SessionMetNPC[]
+
+  @@map("npcs")
+}
+
+model Shop {
+  id          String     @id @default(cuid())
+  campaignId  String     @map("campaign_id")
+  locationId  String?    @map("location_id")
+  keeperNpcId String?    @map("keeper_npc_id")
+  name        String
+  shopType    String     @map("shop_type")
+  campaign    Campaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  location    Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  keeperNpc   NPC?       @relation("ShopKeeper", fields: [keeperNpcId], references: [id], onDelete: SetNull)
+  items       ShopItem[]
+
+  @@map("shops")
+}
+
+model ShopItem {
+  id            String     @id @default(cuid())
+  shopId        String     @map("shop_id")
+  name          String
+  description   String     @db.Text
+  rarity        ItemRarity
+  isMagic       Boolean    @default(false) @map("is_magic")
+  priceCp       Int        @map("price_cp")
+  stockQuantity Int        @default(-1) @map("stock_quantity")
+  shop          Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@map("shop_items")
+}
+
+enum ScheduleFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+model ScheduleRule {
+  id              String            @id @default(cuid())
+  campaignId      String            @map("campaign_id")
+  frequency       ScheduleFrequency
+  dayOfWeek       Int               @map("day_of_week")
+  startTime       String            @map("start_time")
+  durationMinutes Int               @map("duration_minutes")
+  campaign        Campaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  scheduledGames  ScheduledGame[]
+
+  @@map("schedule_rules")
+}
+
+enum ScheduledGameStatus {
+  SCHEDULED
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model ScheduledGame {
+  id             String              @id @default(cuid())
+  campaignId     String              @map("campaign_id")
+  scheduleRuleId String?             @map("schedule_rule_id")
+  dateTime       DateTime            @map("date_time")
+  title          String
+  status         ScheduledGameStatus
+  campaign       Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  scheduleRule   ScheduleRule?       @relation(fields: [scheduleRuleId], references: [id], onDelete: SetNull)
+  attendances    GameAttendance[]
+  sessionLog     SessionLog?
+
+  @@map("scheduled_games")
+}
+
+enum AttendanceStatus {
+  ATTENDING
+  NOT_ATTENDING
+  TENTATIVE
+  NO_REPLY
+}
+
+model GameAttendance {
+  id       String           @id @default(cuid())
+  gameId   String           @map("game_id")
+  userId   String           @map("user_id")
+  status   AttendanceStatus
+  comment  String?          @db.Text
+  game     ScheduledGame    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, userId])
+  @@map("game_attendance")
+}
+
+model CampaignNote {
+  id         String              @id @default(cuid())
+  campaignId String              @map("campaign_id")
+  authorId   String              @map("author_id")
+  isShared   Boolean             @map("is_shared")
+  imageUrl   String?             @map("image_url")
+  title      String
+  content    String              @db.Text
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+  campaign   Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  author     User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  shares     CampaignNoteShare[]
+
+  @@map("campaign_notes")
+}
+
+model CampaignNoteShare {
+  id     String       @id @default(cuid())
+  noteId String       @map("note_id")
+  userId String       @map("user_id")
+  note   CampaignNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, userId])
+  @@map("campaign_note_shares")
+}
+
+model SessionLog {
+  id               String                   @id @default(cuid())
+  campaignId       String                   @map("campaign_id")
+  scheduledGameId  String?                  @unique @map("scheduled_game_id")
+  sessionNumber    Int                      @map("session_number")
+  title            String
+  playedAt         DateTime                 @map("played_at")
+  summary          String                   @db.Text
+  dmNotes          String?                  @db.Text @map("dm_notes")
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  campaign         Campaign                 @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  scheduledGame    ScheduledGame?           @relation(fields: [scheduledGameId], references: [id], onDelete: SetNull)
+  attendees        SessionAttendee[]
+  sessionNotes     SessionNote[]
+  visitedLocations SessionVisitedLocation[]
+  metNpcs          SessionMetNPC[]
+  feedback         SessionFeedback[]
+
+  @@map("session_logs")
+}
+
+model SessionAttendee {
+  id          String      @id @default(cuid())
+  sessionId   String      @map("session_id")
+  userId      String      @map("user_id")
+  characterId String?     @map("character_id")
+  session     SessionLog  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character   Character?  @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, userId])
+  @@map("session_attendees")
+}
+
+model SessionVisitedLocation {
+  id         String     @id @default(cuid())
+  sessionId  String     @map("session_id")
+  locationId String     @map("location_id")
+  session    SessionLog @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  location   Location   @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, locationId])
+  @@map("session_visited_locations")
+}
+
+model SessionMetNPC {
+  id        String     @id @default(cuid())
+  sessionId String     @map("session_id")
+  npcId     String     @map("npc_id")
+  session   SessionLog @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  npc       NPC        @relation(fields: [npcId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, npcId])
+  @@map("session_met_npcs")
+}
+
+model SessionFeedback {
+  id        String     @id @default(cuid())
+  sessionId String     @map("session_id")
+  userId    String     @map("user_id")
+  rating    Int?
+  comment   String     @db.Text
+  isPublic  Boolean    @default(true) @map("is_public")
+  createdAt DateTime   @default(now()) @map("created_at")
+  session   SessionLog @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session_feedback")
+}
+
+model SessionNote {
+  id          String     @id @default(cuid())
+  sessionId   String     @map("session_id")
+  userId      String     @map("user_id")
+  characterId String?    @map("character_id")
+  title       String
+  content     String     @db.Text
+  isShared    Boolean    @default(false) @map("is_shared")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  session     SessionLog @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, userId])
+  @@map("session_notes")
+}

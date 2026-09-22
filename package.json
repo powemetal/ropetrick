@@ -12,9 +12,11 @@
     "prisma:generate": "node node_modules/prisma/build/index.js generate",
     "prisma:seed-compendium": "npx tsx prisma/seed-compendium.ts",
     "seed:spells": "tsx prisma/spell-seed.ts",
-    "seed:feats-backgrounds": "tsx prisma/feat-background-seed.ts"
+    "seed:feats-backgrounds": "tsx prisma/feat-background-seed.ts",
+    "seed:seed-rest": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/rest-seed.ts"
   },
   "prisma": {
+    "schema": "prisma/schema",
     "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
