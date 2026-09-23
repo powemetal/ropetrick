@@ -107,17 +107,47 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
   const [draftClass, setDraftClass] = useState(character.className ?? "");
   const [draftSubclass, setDraftSubclass] = useState(character.subclassName ?? "");
   const [draftScores, setDraftScores] = useState<AbilityScores>(scores);
-  const [availableSpells, setAvailableSpells] = useState<any[]>([]);
+  
+  const constitutionMod = calculateModifier(scores.constitution);
+  const hitDieValue = Number(character.hitDie ?? 8);
+  const calculatedMaxHp = Math.max(1, hitDieValue + constitutionMod + Math.max(1, character.level - 1) * (Math.floor(hitDieValue / 2) + 1 + constitutionMod));
 
-  const [proficiencies, setProficiencies] = useState<Partial<Record<Skill, SkillProficiency>>>(character.skillProficiencies ?? {});
+  const [draftMaxHitPoints, setDraftMaxHitPointsState] = useState(() => {
+    return character.maxHitPoints && character.maxHitPoints > 1 ? character.maxHitPoints : calculatedMaxHp;
+  });
 
-  const [hitPoints, setHitPoints] = useState(character.currentHitPoints ?? character.maxHitPoints ?? 1);
+  const [hitPoints, setHitPoints] = useState(character.currentHitPoints ?? character.maxHitPoints ?? calculatedMaxHp);
   const [temporaryHitPoints, setTemporaryHitPoints] = useState(character.temporaryHitPoints ?? 0);
   const [hitDice, setHitDice] = useState(character.level);
   const [inspiration, setInspiration] = useState(false);
 
-  const [slots, setSlots] = useState<number[]>(() => parseInitialSpellSlots((character as any).spellSlots));
+  // Synchronisation immédiate si les props distantes du personnage changent (après le retour serveur)
+  useEffect(() => {
+    if (character.currentHitPoints !== undefined && character.currentHitPoints !== null) {
+      setHitPoints(character.currentHitPoints);
+    }
+    if (character.temporaryHitPoints !== undefined && character.temporaryHitPoints !== null) {
+      setTemporaryHitPoints(character.temporaryHitPoints);
+    }
+    if (character.maxHitPoints && character.maxHitPoints > 1) {
+      setDraftMaxHitPointsState(character.maxHitPoints);
+    }
+  }, [character.currentHitPoints, character.temporaryHitPoints, character.maxHitPoints]);
 
+  const [availableSpells, setAvailableSpells] = useState<any[]>([]);
+  const [proficiencies, setProficiencies] = useState<Partial<Record<Skill, SkillProficiency>>>(character.skillProficiencies ?? {});
+
+  // État des jets contre la mort
+  const [deathSaves, setDeathSaves] = useState({
+    successes: (character as any).deathSavesSuccess ?? (character as any).deathSaves?.successes ?? 0,
+    failures: (character as any).deathSavesFailure ?? (character as any).deathSaves?.failures ?? 0,
+  });
+
+  const handleUpdateDeathSaves = (successes: number, failures: number) => {
+    setDeathSaves({ successes, failures });
+  };
+
+  const [slots, setSlots] = useState<number[]>(() => parseInitialSpellSlots((character as any).spellSlots));
   const [activeTab, setActiveTab] = useState<"spellbook" | "feats" | "inventory" | "biography">("spellbook");
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
@@ -189,6 +219,11 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
   const [draftFeats, setDraftFeats] = useState<CharacterFeatEntry[]>(initialFeats);
   const [draftInventory, setDraftInventory] = useState<CharacterInventoryEntry[]>(character.inventoryItems ?? []);
   const [liveInventory, setLiveInventory] = useState<CharacterInventoryEntry[]>(character.inventoryItems ?? []);
+
+  const setDraftMaxHitPoints = (value: number) => {
+    const newMax = Math.max(1, Number(value) || 1);
+    setDraftMaxHitPointsState(newMax);
+  };
 
   useEffect(() => {
     const inventory = character.inventoryItems ?? [];
@@ -361,7 +396,9 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
 
   const displayedScores = editing ? draftScores : scores;
   const skillBonuses = calculateSkillBonuses(displayedScores, proficiencies, character.level);
-  const maxHitPoints = character.maxHitPoints ?? 1;
+  
+  // Correction de la variable d'état des PV max
+  const maxHitPoints = draftMaxHitPoints;
 
   const abilityForSpellcasting: Ability = character.dndClass?.spellcastingAbility ? (character.dndClass.spellcastingAbility.toLowerCase() as Ability) : "intelligence";
 
@@ -454,6 +491,7 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
 
   const saveChanges = () => {
     if (!onSave) return;
+    
     startTransition(async () => {
       try {
         const featsToSave = [
@@ -477,7 +515,6 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
           }
         });
 
-        // Nettoyage et normalisation de l'inventaire pour satisfaire le Zod du serveur
         const cleanedInventory = draftInventory.map((entry) => {
           const rawType = entry.item?.type;
           const normalizedType = VALID_ZOD_ITEM_TYPES.has(rawType as string) ? rawType : "GEAR";
@@ -504,14 +541,18 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
           themeKey: theme,
           notebookTheme: theme,
           spellSlots: formattedSlots,
+          currentHitPoints: hitPoints,
+          temporaryHitPoints: temporaryHitPoints,
+          maxHitPoints: draftMaxHitPoints, // Utilise bien la variable d'état correcte
+          deathSavesSuccess: deathSaves.successes,
+          deathSavesFailure: deathSaves.failures,
           ...wealth,
           ...biography,
           spells: draftSpells,
           feats: featsToSave,
           inventoryItems: cleanedInventory as any,
-        });
+        } as any);
 
-        // Mettre à jour l'inventaire local avec la version nettoyée pour refléter l'état persisté
         setDraftInventory(cleanedInventory as any);
         setLiveInventory(cleanedInventory as any);
 
@@ -588,12 +629,15 @@ export function useCharacterSheet(character: CharacterSheetViewCharacter, onSave
     hitPoints,
     setHitPoints,
     maxHitPoints,
+    setDraftMaxHitPoints,
     temporaryHitPoints,
     setTemporaryHitPoints,
     hitDice,
     setHitDice,
     inspiration,
     setInspiration,
+    deathSaves,
+    handleUpdateDeathSaves,
     slots,
     setSlots,
     activeTab,

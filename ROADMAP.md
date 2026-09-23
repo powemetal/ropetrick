@@ -121,15 +121,15 @@
 
 
 ## Phase 4 : Interface Utilisateur & Intégration Fiche
-- [ ] En-tête & Statistiques dérivées :
-  - [ ] Affichage de la vitesse calculée, vision dans le noir et sens passifs
-  - [ ] Jauge de progression des points d'expérience (XP)
+- [x] En-tête & Statistiques dérivées :
+  - [x] Affichage de la vitesse calculée, vision dans le noir et sens passifs
+  - [x] Jauge de progression des points d'expérience (XP)
 - [ ] Module Jets contre la mort :
   - [ ] Affichage automatique dès que les PV tombent à 0 (3 bulles de succès, 3 bulles d'échec)
-- [ ] Onglet Inventaire enrichi :
-  - [ ] Barre de progression de la charge portée vs capacité maximale
-  - [ ] Cases d'harmonisation active (3 slots max)
-  - [ ] Cartes d'armes avec détails cliquables (dés, propriétés)
+- [x] Onglet Inventaire enrichi :
+  - [x] Barre de progression de la charge portée vs capacité maximale
+  - [x] Cases d'harmonisation active (3 slots max)
+  - [x] Cartes d'armes avec détails cliquables (dés, propriétés)
 - [ ] Onglet Dons & Aptitudes :
   - [ ] Compteurs interactifs d'utilisations par repos
   - [ ] Interface de choix de statistique pour les demi-dons

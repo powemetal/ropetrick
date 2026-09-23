@@ -1,10 +1,4 @@
-import type {
-  Ability,
-  AbilityScores,
-  Skill,
-  SkillProficiency,
-  SpellcastingProgression,
-} from "@/modules/characters/engine/dnd-rules-engine";
+import type { Ability, AbilityScores, Skill, SkillProficiency, SpellcastingProgression } from "@/modules/characters/engine/dnd-rules-engine";
 import type { DndThemeKey } from "@/styles/dnd-themes";
 
 export const abilityLabels: Record<Ability, string> = {
@@ -46,26 +40,9 @@ export const defaultScores: AbilityScores = {
   charisma: 10,
 };
 
-export const validThemes = new Set<DndThemeKey>([
-  "light",
-  "dark",
-  "barbarian",
-  "bard",
-  "cleric",
-  "druid",
-  "fighter",
-  "monk",
-  "paladin",
-  "ranger",
-  "rogue",
-  "sorcerer",
-  "warlock",
-  "wizard",
-  "artificer",
-]);
+export const validThemes = new Set<DndThemeKey>(["light", "dark", "barbarian", "bard", "cleric", "druid", "fighter", "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard", "artificer"]);
 
-export const skillCodeFor = (value: string) =>
-  value.replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase();
+export const skillCodeFor = (value: string) => value.replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase();
 
 export type CharacterSpellEntry = {
   id: string;
@@ -241,6 +218,9 @@ export type CharacterSheetUpdateData = {
   spellSlots?: unknown;
   themeKey?: string;
   notebookTheme?: string;
+  currentHitPoints?: number;
+  maxHitPoints?: number;
+  temporaryHitPoints?: number;
   copperPieces?: number;
   silverPieces?: number;
   electrumPieces?: number;

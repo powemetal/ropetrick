@@ -188,6 +188,17 @@ export async function updateCharacter(userId: string, characterId: string, data:
         intelligenceMod: calculateModifier(input.intelligence ?? character.intelligence),
         wisdomMod: calculateModifier(input.wisdom ?? character.wisdom),
         charismaMod: calculateModifier(input.charisma ?? character.charisma),
+        
+// --- PERSISTANCE DES POINTS DE VIE & SAUVEGARDES ---
+        maxHitPoints: rawData.maxHitPoints !== undefined ? Number(rawData.maxHitPoints) : character.maxHitPoints,
+        currentHitPoints: rawData.currentHitPoints !== undefined ? Number(rawData.currentHitPoints) : character.currentHitPoints,
+        temporaryHitPoints: rawData.temporaryHitPoints !== undefined ? Number(rawData.temporaryHitPoints) : character.temporaryHitPoints,
+        deathSaves: (rawData.deathSavesSuccess !== undefined || rawData.deathSavesFailure !== undefined ? {
+          successes: rawData.deathSavesSuccess ?? (character.deathSaves as any)?.successes ?? 0,
+          failures: rawData.deathSavesFailure ?? (character.deathSaves as any)?.failures ?? 0,
+        } : character.deathSaves) as Prisma.InputJsonValue,
+        // --------------------------------------------------
+
         skillProficiencies: (input.skillProficiencies ?? character.skillProficiencies) as Prisma.InputJsonValue,
         spellSlots: (input as any).spellSlots !== undefined 
           ? ((input as any).spellSlots as Prisma.InputJsonValue) 
@@ -277,7 +288,6 @@ export async function getCharacterById(characterId: string, userId: string) {
     const equipmentType = inv.equipment?.type;
     const customName = inv.customName ?? "";
     
-    // Normalisation intelligente du type à la source (détection par nom si custom)
     let resolvedType = "GEAR";
     if (equipmentType) {
       resolvedType = equipmentType.toUpperCase();
@@ -351,7 +361,6 @@ export async function toggleCharacterInventoryEquipped(userId: string, character
   });
   if (!inventoryItem) throw new Error("Inventory item not found");
 
-  // Détermination robuste du type (qu'il vienne de equipment ou qu'il soit personnalisé/déduit)
   let itemType = (inventoryItem.equipment?.type ?? "").toUpperCase();
   
   if (!itemType) {
@@ -363,16 +372,14 @@ export async function toggleCharacterInventoryEquipped(userId: string, character
     } else if (name.includes("shield") || name.includes("bouclier")) {
       itemType = "SHIELD";
     } else {
-      itemType = "GEAR"; // Par défaut si c'est de l'équipement général
+      itemType = "GEAR";
     }
   }
 
-  // On autorise maintenant les armes, armures et boucliers (et on laisse passer le GEAR si l'utilisateur veut l'équiper)
   const nextEquipped = !inventoryItem.equipped;
 
   await prisma.$transaction(async (tx) => {
     if (nextEquipped && (itemType === "ARMOR" || itemType === "SHIELD")) {
-      // Optionnel : Gérer l'exclusivité d'armure/bouclier si besoin
     }
     await tx.characterInventoryItem.update({ 
       where: { id: inventoryItemId }, 
