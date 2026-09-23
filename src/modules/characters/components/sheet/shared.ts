@@ -109,6 +109,7 @@ export type CharacterInventoryEntry = {
   id: string;
   quantity: number;
   isEquipped: boolean;
+  isAttuned?: boolean;
   notes?: string | null;
   item: {
     id: string;

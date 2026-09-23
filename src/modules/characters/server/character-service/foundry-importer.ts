@@ -99,15 +99,24 @@ export async function createCharacterFromFoundry(userId: string, rawJson: unknow
     }
 
     const inventoryToCreate: Prisma.CharacterInventoryItemCreateWithoutCharacterInput[] =
-      parsed.extractedItems.map((invItem) => {
+      parsed.extractedItems.map((invItem: any) => {
         const cleanName = invItem.name.trim();
         const equipmentId = equipmentMap.get(cleanName.toLowerCase()) ?? null;
+
+        // Détection robuste de l'état d'harmonisation (attunement) depuis les données extraites
+        const isAttunedValue = Boolean(
+          invItem.attuned || 
+          invItem.isAttuned || 
+          invItem.system?.attuned || 
+          false
+        );
 
         return {
           equipment: equipmentId ? { connect: { id: equipmentId } } : undefined,
           customName: equipmentId ? null : cleanName,
-          quantity: invItem.quantity,
-          equipped: invItem.equipped,
+          quantity: invItem.quantity ?? 1,
+          equipped: invItem.equipped ?? false,
+          isAttuned: isAttunedValue, // <--- Enregistre l'harmonisation dès l'import initial
           notes: invItem.description ? invItem.description.slice(0, 1000) : null,
         };
       });

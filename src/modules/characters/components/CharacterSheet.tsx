@@ -12,6 +12,7 @@ import {
   CharacterBiographyTab,
 } from "@/modules/characters/components/sheet";
 
+import { EquipmentMannequin } from "@/modules/characters/components/sheet/EquipmentMannequin";
 import { CharacterLevelUpModal } from "@/modules/characters/components/sheet/CharacterLevelUpModal";
 
 import {
@@ -22,6 +23,7 @@ import {
 
 import { CollapsibleSection } from "./sheet/CollapsibleSection";
 import { useCharacterSheet } from "./sheet/useCharacterSheet";
+import { calculateModifier } from "@/modules/characters/engine/dnd-rules-engine";
 
 export type { CharacterSheetUpdateData, CharacterLevelUpData };
 
@@ -44,6 +46,13 @@ export function CharacterSheet({
 }: CharacterSheetProps) {
   const sheet = useCharacterSheet(character, onSave, onLevelUp, onToggleEquip);
   const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
+
+  // Extraction propre et sécurisée depuis le hook de la feuille via displayedScores
+  const strengthVal = Number(sheet.displayedScores?.strength ?? 18);
+  const dexterityVal = Number(sheet.displayedScores?.dexterity ?? 10);
+
+  const strengthMod = calculateModifier(strengthVal);
+  const dexterityMod = calculateModifier(dexterityVal);
 
   const handleThemeChange = async (newTheme: string) => {
     const themeValue = newTheme as DndThemeKey;
@@ -148,7 +157,26 @@ export function CharacterSheet({
         />
       </CollapsibleSection>
 
-      {/* 3. Détails & Grimoire (Onglets) */}
+      {/* 3. Mannequin d'Équipement & Armes (Section repliable indépendante) */}
+      <CollapsibleSection
+        title="Mannequin d'Équipement & Combat"
+        isCollapsed={sheet.collapsed.equipment ?? false}
+        onToggle={() => sheet.toggleCollapsed("equipment" as any)}
+        maxHeightClass="max-h-[2000px]"
+      >
+        <EquipmentMannequin
+          activeInventory={sheet.activeInventory}
+          onToggleEquip={sheet.handleToggleEquip}
+          strengthMod={strengthMod}
+          dexterityMod={dexterityMod}
+          level={character.level}
+          onRollItem={(item) => {
+            console.log("Lancer de dé pour l'arme :", item.item.name);
+          }}
+        />
+      </CollapsibleSection>
+
+      {/* 4. Détails & Grimoire (Onglets) */}
       <CollapsibleSection
         title="Détails du personnage"
         isCollapsed={sheet.collapsed.details}
@@ -224,7 +252,7 @@ export function CharacterSheet({
           />
         )}
 
-        {sheet.activeTab === "inventory" && (
+{sheet.activeTab === "inventory" && (
           <CharacterInventoryTab
             editing={sheet.editing}
             activeInventory={sheet.activeInventory}
@@ -234,8 +262,14 @@ export function CharacterSheet({
             onToggleEquip={onToggleEquip}
             equipPendingId={sheet.equipPendingId}
             handleToggleEquip={sheet.handleToggleEquip}
+            onToggleAttune={sheet.handleToggleAttune}
+            attunementPendingId={sheet.attunementPendingId}
             wealth={sheet.wealth}
             setWealth={sheet.setWealth}
+            strength={strengthVal}
+            strengthMod={strengthMod}
+            dexterityMod={dexterityMod}
+            level={character.level}
           />
         )}
 

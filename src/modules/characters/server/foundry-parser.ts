@@ -59,6 +59,7 @@ export type ParsedFoundryCharacter = {
     quantity: number;
     equipped: boolean;
     attunement: number; // 0: none, 1: required, 2: attuned
+    isAttuned: boolean; // État d'harmonisation résolu
     description: string;
     weight: number;
     price: number;
@@ -98,7 +99,7 @@ function cleanHtmlDescription(html: string | null): string {
     .replace(/<br\s*[\/]?>/gi, "\n")
     .replace(/<[^>]*>/g, "")
     .replace(
-      /@(?:Item|JournalEntry|Actor|RollTable|Compendium|UUID|config|embed|variantrule|spell|creature|action|feat)\[([^|\]]+)(?:\|[^\]]+)*\]/g,
+      /@(?:Item|JournalEntry|Actor|RollTable|Compendium|UUID|config|embed|variantrule|spell|creature|action|feat)\[([^\vert{}\]]+)(?:\|[^\]]+)*\]/g,
       "$1"
     )
     .replace(/\[\[\/damage\s+([0-9d+\s-]+)(?:\s+type=([a-z]+))?\]\]/gi, "$1 $2")
@@ -127,7 +128,6 @@ export function parseFoundryActor(rawJson: unknown): ParsedFoundryCharacter {
   let totalCalculatedLevel = 0;
 
   if (classItems.length > 0) {
-    // Si multiclassage, concatène ex: "Fighter / Cleric"
     const classNames: string[] = [];
     const subClassNames: string[] = [];
 
@@ -147,7 +147,6 @@ export function parseFoundryActor(rawJson: unknown): ParsedFoundryCharacter {
 
     className = classNames.join(" / ");
 
-    // Ajout des items de type "subclass" v12 si non trouvés en inline
     for (const scItem of subclassItems) {
       if (typeof scItem.name === "string" && !subClassNames.includes(scItem.name)) {
         subClassNames.push(scItem.name);
@@ -157,7 +156,6 @@ export function parseFoundryActor(rawJson: unknown): ParsedFoundryCharacter {
     subclassName = subClassNames.length > 0 ? subClassNames.join(" / ") : null;
   }
 
-  // Fallback si pas d'item de classe dédié
   if (!className) {
     className = firstText(
       textAt(system, "details", "class", "name"),
@@ -300,13 +298,17 @@ export function parseFoundryActor(rawJson: unknown): ParsedFoundryCharacter {
       const weightObj = asRecord(itemSystem.weight);
       const priceObj = asRecord(itemSystem.price);
       const attunementVal = numberAt(itemSystem, "attunement");
+      
+      // Extraction robuste de l'état d'harmonisation
+      const isAttunedBool = itemSystem.attuned === true || attunementVal === 2;
 
       extractedItems.push({
         name: itemName,
         type: currentItemType ?? "loot",
         quantity: numberAt(itemSystem, "quantity") || 1,
         equipped: itemSystem.equipped === true,
-        attunement: attunementVal, // 0 = non, 1 = requis, 2 = harmonisé
+        attunement: attunementVal, 
+        isAttuned: isAttunedBool,
         description: itemDesc,
         weight: numberAt(weightObj, "value"),
         price: numberAt(priceObj, "value"),
@@ -315,6 +317,7 @@ export function parseFoundryActor(rawJson: unknown): ParsedFoundryCharacter {
           properties: itemSystem.properties,
           armor: itemSystem.armor,
           rarity: textAt(itemSystem, "rarity"),
+          type: itemSystem.type,
         } as Prisma.InputJsonObject,
       });
     }
