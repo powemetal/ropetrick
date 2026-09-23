@@ -92,6 +92,84 @@ export function calculateSpellAttackBonus(spellcastingModifier: number, level: n
   return proficiencyBonus(level) + spellcastingModifier;
 }
 
+/**
+ * Calcule le bonus d'attaque et la formule de dégâts complète d'une arme
+ */
+export function calculateWeaponStats(options: {
+  weapon: any;
+  strengthModifier: number;
+  dexterityModifier: number;
+  level: number;
+  isProficient?: boolean;
+}) {
+  const { weapon, strengthModifier, dexterityModifier, level, isProficient = true } = options;
+  const subItem = weapon.item ?? weapon;
+  const system = subItem.system ?? subItem;
+
+  // 1. Bonus de maîtrise garanti si isProficient est vrai
+  const profBonus = isProficient ? proficiencyBonus(level) : 0;
+
+  // 2. Propriétés de l'arme (finesse, distance, etc.)
+  const properties = Array.isArray(system.properties) 
+    ? system.properties 
+    : Object.keys(system.properties ?? {});
+  
+  const isFinesse = properties.includes("fin") || properties.includes("finesse");
+  const isRanged = system.type === "ranged" || system.range?.units === "ft" || properties.includes("range");
+
+  // Si c'est une arme de corps à corps classique, on prend la Force. Si finesse/distance, le max entre Force et Dex.
+  const abilityMod = (isFinesse || isRanged)
+    ? Math.max(strengthModifier, dexterityModifier)
+    : strengthModifier;
+
+  // 3. Détection du bonus magique (ex: "+1" dans system.magicalBonus ou dans le nom)
+  let magicalBonus = Number(system.magicalBonus ?? subItem.magicalBonus ?? 0);
+  if (!magicalBonus && (subItem.name || system.name)) {
+    const itemName = subItem.name || system.name;
+    const match = itemName.match(/\+(\d+)/);
+    if (match) magicalBonus = parseInt(match[1], 10);
+  }
+
+  // 4. Calcul total du Bonus d'Attaque : Caractéristique + Maîtrise + Bonus magique de l'arme
+  const attackBonus = abilityMod + profBonus + magicalBonus;
+  const formattedAttackBonus = attackBonus >= 0 ? `+${attackBonus}` : `${attackBonus}`;
+
+  // 5. Formule de dégâts (Le bonus de caractéristique et le bonus magique s'appliquent aux dégâts, mais pas le bonus de maîtrise)
+  const baseDamageObj = system.damage?.base;
+  const diceNum = baseDamageObj?.number ?? 1;
+  const diceDenom = baseDamageObj?.denomination ?? 6;
+  const baseDamageDice = `${diceNum}d${diceDenom}`;
+
+  const damageTypesArr = baseDamageObj?.types;
+  const damageType = Array.isArray(damageTypesArr) && damageTypesArr.length > 0 
+    ? damageTypesArr[0] 
+    : (system.damageType || "");
+
+  let damageParts = [baseDamageDice];
+  if (abilityMod !== 0) {
+    damageParts.push(abilityMod > 0 ? `+ ${abilityMod}` : `- ${Math.abs(abilityMod)}`);
+  }
+  if (magicalBonus > 0) {
+    damageParts.push(`+ ${magicalBonus}`);
+  }
+
+  const damageFormula = damageParts.join(" ");
+
+  // Détail textuel explicatif pour afficher aux joueurs (ex: "+4 Carac + 3 Maîtrise + 1 Magique")
+  const formattedAbilityMod = abilityMod >= 0 ? `+${abilityMod}` : `${abilityMod}`;
+  const breakdown = `${formattedAbilityMod} (Carac) + ${profBonus} (Maîtrise) + ${magicalBonus} (Magique)`;
+
+  return {
+    attackBonus: formattedAttackBonus,
+    damageFormula,
+    damageType,
+    abilityMod,
+    magicalBonus,
+    profBonus,
+    breakdown,
+  };
+}
+
 const FULL_SPELL_SLOTS = [
   [0, 0, 0, 0, 0, 0, 0, 0, 0],
   [2, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -122,4 +200,113 @@ export function calculateSpellSlots(level: number, progression: SpellcastingProg
   const safeLevel = Math.min(Math.max(Math.floor(level), 1), 20);
   const effectiveLevel = progression === "FULL" ? safeLevel : progression === "HALF" ? Math.ceil(safeLevel / 2) : Math.ceil(safeLevel / 3);
   return [...(FULL_SPELL_SLOTS[effectiveLevel] ?? FULL_SPELL_SLOTS[FULL_SPELL_SLOTS.length - 1])];
+}
+
+export function calculatePassivePerception(
+  skillBonuses: Record<Skill, number>,
+  hasAdvantage: boolean = false,
+  hasDisadvantage: boolean = false
+) {
+  let score = 10 + (skillBonuses.perception ?? 0);
+  if (hasAdvantage) score += 5;
+  if (hasDisadvantage) score -= 5;
+  return score;
+}
+
+export function calculatePassiveInsight(
+  skillBonuses: Record<Skill, number>,
+  hasAdvantage: boolean = false,
+  hasDisadvantage: boolean = false
+) {
+  let score = 10 + (skillBonuses.insight ?? 0);
+  if (hasAdvantage) score += 5;
+  if (hasDisadvantage) score -= 5;
+  return score;
+}
+
+export function calculatePassiveInvestigation(
+  skillBonuses: Record<Skill, number>,
+  hasAdvantage: boolean = false,
+  hasDisadvantage: boolean = false
+) {
+  let score = 10 + (skillBonuses.investigation ?? 0);
+  if (hasAdvantage) score += 5;
+  if (hasDisadvantage) score -= 5;
+  return score;
+}
+
+export type EncumbranceStatus = "NORMAL" | "ENCUMBERED" | "HEAVILY_ENCUMBERED" | "OVER_CAPACITY";
+
+export function calculateEncumbrance(strength: number, totalWeightLb: number) {
+  const carryingCapacity = strength * 15;
+  const encumberedThreshold = strength * 5;
+  const heavilyEncumberedThreshold = strength * 10;
+
+  let status: EncumbranceStatus = "NORMAL";
+  let speedPenalty = 0;
+  let hasDisadvantage = false;
+
+  if (totalWeightLb > carryingCapacity) {
+    status = "OVER_CAPACITY";
+    speedPenalty = -999;
+    hasDisadvantage = true;
+  } else if (totalWeightLb > heavilyEncumberedThreshold) {
+    status = "HEAVILY_ENCUMBERED";
+    speedPenalty = 20;
+    hasDisadvantage = true;
+  } else if (totalWeightLb > encumberedThreshold) {
+    status = "ENCUMBERED";
+    speedPenalty = 10;
+  }
+
+  return {
+    totalWeightLb,
+    carryingCapacity,
+    encumberedThreshold,
+    heavilyEncumberedThreshold,
+    status,
+    speedPenalty,
+    hasDisadvantage,
+    isOverCapacity: totalWeightLb > carryingCapacity,
+  };
+}
+
+export type MovementSpeeds = {
+  walking: number;
+  fly?: number;
+  swim?: number;
+  climb?: number;
+};
+
+export function calculateMovementSpeed(options: {
+  baseSpeciesSpeed: number;
+  classBonus?: number;
+  featBonus?: number;
+  speedPenalty?: number;
+  alternativeSpeeds?: {
+    fly?: number;
+    swim?: number;
+    climb?: number;
+  };
+}): MovementSpeeds {
+  const penalty = options.speedPenalty ?? 0;
+  
+  if (penalty <= -900) {
+    return {
+      walking: 0,
+      fly: 0,
+      swim: 0,
+      climb: 0,
+    };
+  }
+
+  const rawWalking = options.baseSpeciesSpeed + (options.classBonus ?? 0) + (options.featBonus ?? 0) - penalty;
+  const walking = Math.max(rawWalking, 0);
+
+  return {
+    walking,
+    fly: options.alternativeSpeeds?.fly,
+    swim: options.alternativeSpeeds?.swim,
+    climb: options.alternativeSpeeds?.climb,
+  };
 }

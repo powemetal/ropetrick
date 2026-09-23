@@ -8,7 +8,6 @@ import { deleteStorageObject } from "@/lib/storage";
 
 export async function fetchAvailableFeats() {
   try {
-    // CORRIGÉ : prisma.feats -> prisma.feat
     const feats = await prisma.feat.findMany({ 
       select: { id: true, name: true, description: true, prerequisite: true }, 
       orderBy: { name: "asc" } 
@@ -88,7 +87,7 @@ export async function createCharacter(userId: string, data: unknown) {
           spell: { connect: { id: spellId } }, 
           prepared: true, 
           learned: true 
-        })) 
+         })) 
       } : undefined, 
       weaponMasteries: selectedWeaponMasteryIds?.length ? { create: selectedWeaponMasteryIds.map((masteryId) => ({ masteryId })) } : undefined, 
       languages: selectedLanguageIds?.length ? { create: selectedLanguageIds.map((languageId) => ({ languageId })) } : undefined, 
@@ -96,7 +95,8 @@ export async function createCharacter(userId: string, data: unknown) {
         create: startingEquipmentIds.map((equipmentId) => ({ 
           equipment: { connect: { id: equipmentId } }, 
           quantity: 1, 
-          equipped: false 
+          equipped: false,
+          isAttuned: false,
         })) 
       } : undefined, 
       resources: resourceTrackers.length ? { create: resourceTrackers } : undefined 
@@ -105,6 +105,7 @@ export async function createCharacter(userId: string, data: unknown) {
 }
 
 export async function updateCharacter(userId: string, characterId: string, data: unknown) {
+  const rawData = data as any; 
   const input = CharacterSheetUpdateSchema.parse(data);
   const character = await prisma.character.findFirst({ where: { id: characterId, userId } });
   if (!character) throw new Error("Character not found");
@@ -114,7 +115,8 @@ export async function updateCharacter(userId: string, characterId: string, data:
     include: { equipment: true } 
   });
   const currentInventoryById = new Map(currentInventory.map((entry) => [entry.id, entry]));
-  const incomingInventory = (input as any).inventoryItems ?? (input as any).inventory ?? [];
+  
+  const incomingInventory = rawData.inventoryItems ?? rawData.inventory ?? [];
   const incomingInventoryIds = new Set(incomingInventory.map((entry: any) => entry.id));
 
   return prisma.$transaction(async (transaction) => {
@@ -127,6 +129,8 @@ export async function updateCharacter(userId: string, characterId: string, data:
       const currentEntry = currentInventoryById.get(inventoryItem.id);
       const incomingItem = inventoryItem.item ?? inventoryItem.equipment;
       const isTemporary = !inventoryItem.id || inventoryItem.id.startsWith("temp-") || !currentEntry;
+      
+      const isAttunedValue = Boolean(inventoryItem.isAttuned ?? inventoryItem.attuned ?? incomingItem?.attuned ?? false);
 
       if (isTemporary) {
         let equipmentId: string | null = null;
@@ -142,6 +146,7 @@ export async function updateCharacter(userId: string, characterId: string, data:
             customName: equipmentId ? null : (incomingItem?.name || inventoryItem.name || "Objet sans nom"),
             quantity: inventoryItem.quantity ?? 1,
             equipped: inventoryItem.equipped ?? inventoryItem.isEquipped ?? false,
+            isAttuned: isAttunedValue,
             notes: incomingItem?.description ?? inventoryItem.notes ?? null,
           },
         });
@@ -154,6 +159,7 @@ export async function updateCharacter(userId: string, characterId: string, data:
           data: { 
             quantity: inventoryItem.quantity ?? currentEntry.quantity, 
             equipped: inventoryItem.equipped !== undefined ? inventoryItem.equipped : (inventoryItem.isEquipped !== undefined ? inventoryItem.isEquipped : currentEntry.equipped),
+            isAttuned: isAttunedValue,
             notes: inventoryItem.notes !== undefined ? inventoryItem.notes : currentEntry.notes,
           },
         });
@@ -182,6 +188,17 @@ export async function updateCharacter(userId: string, characterId: string, data:
         intelligenceMod: calculateModifier(input.intelligence ?? character.intelligence),
         wisdomMod: calculateModifier(input.wisdom ?? character.wisdom),
         charismaMod: calculateModifier(input.charisma ?? character.charisma),
+        
+// --- PERSISTANCE DES POINTS DE VIE & SAUVEGARDES ---
+        maxHitPoints: rawData.maxHitPoints !== undefined ? Number(rawData.maxHitPoints) : character.maxHitPoints,
+        currentHitPoints: rawData.currentHitPoints !== undefined ? Number(rawData.currentHitPoints) : character.currentHitPoints,
+        temporaryHitPoints: rawData.temporaryHitPoints !== undefined ? Number(rawData.temporaryHitPoints) : character.temporaryHitPoints,
+        deathSaves: (rawData.deathSavesSuccess !== undefined || rawData.deathSavesFailure !== undefined ? {
+          successes: rawData.deathSavesSuccess ?? (character.deathSaves as any)?.successes ?? 0,
+          failures: rawData.deathSavesFailure ?? (character.deathSaves as any)?.failures ?? 0,
+        } : character.deathSaves) as Prisma.InputJsonValue,
+        // --------------------------------------------------
+
         skillProficiencies: (input.skillProficiencies ?? character.skillProficiencies) as Prisma.InputJsonValue,
         spellSlots: (input as any).spellSlots !== undefined 
           ? ((input as any).spellSlots as Prisma.InputJsonValue) 
@@ -263,30 +280,73 @@ export async function getCharacterById(characterId: string, userId: string) {
   const rawImportData = character.rawImportData ?? null;
   const selectedFeatNames = selectedFeats.map((entry) => (typeof entry === "string" ? entry : (entry as any)?.name)).filter((entry): entry is string => typeof entry === "string");
   
-  // CORRIGÉ : prisma.feats -> prisma.feat
   const levelUpFeats = selectedFeatNames.length ? await prisma.feat.findMany({ where: { name: { in: selectedFeatNames } } }) : [];
   
   const spells = character.spells.map(({ spell }) => ({ ...spell }));
 
-  const inventoryItems = character.inventory.map((inv) => ({
-    id: inv.id,
-    characterId: inv.characterId,
-    itemId: inv.equipmentId ?? inv.id,
-    quantity: inv.quantity,
-    isEquipped: inv.equipped,
-    item: inv.equipment ?? {
+  const inventoryItems = character.inventory.map((inv) => {
+    const equipmentType = inv.equipment?.type;
+    const customName = inv.customName ?? "";
+    
+    let resolvedType = "GEAR";
+    if (equipmentType) {
+      resolvedType = equipmentType.toUpperCase();
+    } else {
+      const lowerName = customName.toLowerCase();
+      if (
+        lowerName.includes("axe") || 
+        lowerName.includes("sword") || 
+        lowerName.includes("bow") || 
+        lowerName.includes("dagger") || 
+        lowerName.includes("hammer") || 
+        lowerName.includes("mace") || 
+        lowerName.includes("staff") || 
+        lowerName.includes("blade") ||
+        lowerName.includes("spear") ||
+        lowerName.includes("halberd") ||
+        lowerName.includes("glaive") ||
+        lowerName.includes("greataxe")
+      ) {
+        resolvedType = "WEAPON";
+      } else if (lowerName.includes("armor") || lowerName.includes("mail") || lowerName.includes("plate") || lowerName.includes("cuirass") || lowerName.includes("armure")) {
+        resolvedType = "ARMOR";
+      } else if (lowerName.includes("shield") || lowerName.includes("bouclier")) {
+        resolvedType = "SHIELD";
+      } else if (lowerName.includes("potion") || lowerName.includes("scroll") || lowerName.includes("parchemin")) {
+        resolvedType = "CONSUMABLE";
+      } else if (lowerName.includes("ring") || lowerName.includes("amulet") || lowerName.includes("necklace") || lowerName.includes("cloak") || lowerName.includes("+1") || lowerName.includes("+2") || lowerName.includes("+3")) {
+        resolvedType = "MAGIC_ITEM";
+      }
+    }
+
+    if (resolvedType === "WEOAPON") resolvedType = "WEAPON";
+
+    return {
       id: inv.id,
-      slug: `custom-${inv.id}`,
-      name: inv.customName ?? "Objet sans nom",
-      category: "gear",
-      description: inv.notes ?? "",
-      type: "GEAR",
-      costGp: 0,
-      weightLb: 0,
-      armorClass: null,
-      properties: [],
-    },
-  }));
+      characterId: inv.characterId,
+      itemId: inv.equipmentId ?? inv.id,
+      quantity: inv.quantity,
+      isEquipped: inv.equipped,
+      isAttuned: inv.isAttuned,
+      item: inv.equipment ? {
+        ...inv.equipment,
+        type: resolvedType,
+        attuned: inv.isAttuned,
+      } : {
+        id: inv.id,
+        slug: `custom-${inv.id}`,
+        name: customName || "Objet sans nom",
+        category: resolvedType === "WEAPON" ? "Arme" : resolvedType === "ARMOR" ? "Armure" : "gear",
+        description: inv.notes ?? "",
+        type: resolvedType,
+        costGp: 0,
+        weightLb: 0,
+        armorClass: null,
+        properties: [],
+        attuned: inv.isAttuned,
+      },
+    };
+  });
 
   return { ...character, selectedFeats, rawImportData, spells, levelUpFeats, inventoryItems };
 }
@@ -301,19 +361,25 @@ export async function toggleCharacterInventoryEquipped(userId: string, character
   });
   if (!inventoryItem) throw new Error("Inventory item not found");
 
-  const itemType = inventoryItem.equipment?.type;
-  if (itemType !== "ARMOR" && itemType !== "SHIELD") {
-    throw new Error("Seuls les armures et boucliers peuvent être équipés.");
+  let itemType = (inventoryItem.equipment?.type ?? "").toUpperCase();
+  
+  if (!itemType) {
+    const name = (inventoryItem.customName ?? "").toLowerCase();
+    if (name.includes("axe") || name.includes("sword") || name.includes("bow") || name.includes("dagger") || name.includes("hammer") || name.includes("mace") || name.includes("staff") || name.includes("blade") || name.includes("spear") || name.includes("greataxe")) {
+      itemType = "WEAPON";
+    } else if (name.includes("armor") || name.includes("mail") || name.includes("plate") || name.includes("armure")) {
+      itemType = "ARMOR";
+    } else if (name.includes("shield") || name.includes("bouclier")) {
+      itemType = "SHIELD";
+    } else {
+      itemType = "GEAR";
+    }
   }
 
   const nextEquipped = !inventoryItem.equipped;
 
   await prisma.$transaction(async (tx) => {
-    if (nextEquipped) {
-      await tx.characterInventoryItem.updateMany({ 
-        where: { characterId, equipped: true, equipment: { type: itemType } }, 
-        data: { equipped: false } 
-      });
+    if (nextEquipped && (itemType === "ARMOR" || itemType === "SHIELD")) {
     }
     await tx.characterInventoryItem.update({ 
       where: { id: inventoryItemId }, 
@@ -326,8 +392,8 @@ export async function toggleCharacterInventoryEquipped(userId: string, character
     include: { equipment: true } 
   });
 
-  const armor = equippedItems.find((entry) => entry.equipment?.type === "ARMOR");
-  const shield = equippedItems.find((entry) => entry.equipment?.type === "SHIELD");
+  const armor = equippedItems.find((entry) => (entry.equipment?.type ?? "").toUpperCase() === "ARMOR");
+  const shield = equippedItems.find((entry) => (entry.equipment?.type ?? "").toUpperCase() === "SHIELD");
 
   const armorCategory = (armor?.equipment?.armorCategory ?? "NONE") as ArmorCategory;
   const armorBaseClass = armor?.equipment?.armorClass ?? 10;

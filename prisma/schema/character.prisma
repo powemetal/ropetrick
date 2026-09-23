@@ -1,105 +1,112 @@
 model Character {
-  id                  String                     @id @default(cuid())
-  userId              String                     @map("user_id")
-  name                String
-  avatarUrl           String?                    @map("avatar_url")
-  alignment           Alignment?                 @default(TRUE_NEUTRAL)
-  race                String?
-  class               String?
-  subclass            String?
-  level               Int                        @default(1)
-  experiencePoints    Int                        @default(0) @map("experience_points")
-  stats               Json?                      @default("{}")
-  foundryActorId      String?                    @map("foundry_actor_id")
-  foundryVersion      String?                    @map("foundry_version")
-  rawImportData       Json?                      @map("raw_import_data")
+  id                    String                   @id @default(cuid())
+  userId                String                   @map("user_id")
+  name                  String
+  avatarUrl             String?                  @map("avatar_url")
+  alignment             Alignment?               @default(TRUE_NEUTRAL)
+  race                  String?
+  class                 String?
+  subclass              String?
+  level                 Int                      @default(1)
+  experiencePoints      Int                      @default(0) @map("experience_points")
+  stats                 Json?                    @default("{}")
+  foundryActorId        String?                  @map("foundry_actor_id")
+  foundryVersion        String?                  @map("foundry_version")
+  rawImportData         Json?                    @map("raw_import_data")
   
-  speciesId           String?                    @map("species_id")
-  subspeciesId        String?                    @map("subspecies_id")
-  backgroundId        String?                    @map("background_id")
-  dndClassId          String?                    @map("dnd_class_id")
-  subclassId          String?                    @map("subclass_id")
+  speciesId             String?                  @map("species_id")
+  subspeciesId          String?                  @map("subspecies_id")
+  backgroundId          String?                  @map("background_id")
+  dndClassId            String?                  @map("dnd_class_id")
+  subclassId            String?                  @map("subclass_id")
   
   // Caractéristiques principales
-  strength            Int                        @default(10)
-  dexterity           Int                        @default(10)
-  constitution        Int                        @default(10)
-  intelligence        Int                        @default(10)
-  wisdom              Int                        @default(10)
-  charisma            Int                        @default(10)
+  strength              Int                      @default(10)
+  dexterity             Int                      @default(10)
+  constitution          Int                      @default(10)
+  intelligence          Int                      @default(10)
+  wisdom                Int                      @default(10)
+  charisma              Int                      @default(10)
   
   // Modificateurs
-  strengthMod         Int                        @default(0) @map("strength_mod")
-  dexterityMod        Int                        @default(0) @map("dexterity_mod")
-  constitutionMod     Int                        @default(0) @map("constitution_mod")
-  intelligenceMod     Int                        @default(0) @map("intelligence_mod")
-  wisdomMod           Int                        @default(0) @map("wisdom_mod")
-  charismaMod         Int                        @default(0) @map("charisma_mod")
+  strengthMod           Int                      @default(0) @map("strength_mod")
+  dexterityMod          Int                      @default(0) @map("dexterity_mod")
+  constitutionMod       Int                      @default(0) @map("constitution_mod")
+  intelligenceMod       Int                      @default(0) @map("intelligence_mod")
+  wisdomMod             Int                      @default(0) @map("wisdom_mod")
+  charismaMod           Int                      @default(0) @map("charisma_mod")
   
-  savingThrows        Json                       @default("{}") @map("saving_throws")
-  skillProficiencies  Json                       @default("{}") @map("skill_proficiencies")
-  spellSlots          Json?                      @default("{}") @map("spell_slots")
+  savingThrows          Json                     @default("{}") @map("saving_throws")
+  skillProficiencies    Json                     @default("{}") @map("skill_proficiencies")
+  spellSlots            Json?                    @default("{}") @map("spell_slots")
   
-  maxHitPoints        Int                        @default(1) @map("max_hit_points")
-  currentHitPoints    Int                        @default(1) @map("current_hit_points")
-  temporaryHitPoints  Int                        @default(0) @map("temporary_hit_points")
-  deathSaves          Json                       @default("{\"successes\":0,\"failures\":0}") @map("death_saves")
-  exhaustionLevel     Int                        @default(0) @map("exhaustion_level")
-  hitDie              Int                        @default(8) @map("hit_die")
-  hitDiceTotal        Int                        @default(1) @map("hit_dice_total")
-  hitDiceCurrent      Int                        @default(1) @map("hit_dice_current")
+  maxHitPoints          Int                      @default(1) @map("max_hit_points")
+  currentHitPoints      Int                      @default(1) @map("current_hit_points")
+  temporaryHitPoints    Int                      @default(0) @map("temporary_hit_points")
+  deathSaves            Json                     @default("{\"successes\":0,\"failures\":0}") @map("death_saves")
+  exhaustionLevel       Int                      @default(0) @map("exhaustion_level")
+  hitDie                Int                      @default(8) @map("hit_die")
+  hitDiceTotal          Int                      @default(1) @map("hit_dice_total")
+  hitDiceCurrent        Int                      @default(1) @map("hit_dice_current")
+
+  // Alignement Foundry VTT (system.traits & conditions)
+  damageResistances     Json                     @default("[]") @map("damage_resistances")
+  damageImmunities      Json                     @default("[]") @map("damage_immunities")
+  damageVulnerabilities Json                     @default("[]") @map("damage_vulnerabilities")
+  activeConditions      Json                     @default("[]") @map("active_conditions")
   
-  armorClass          Int                        @default(10) @map("armor_class")
-  initiative          Int                        @default(0)
-  speed               Int                        @default(30)
-  spellSaveDc         Int?                       @map("spell_save_dc")
-  spellAttackBonus    Int?                       @map("spell_attack_bonus")
-  inspiration         Boolean                    @default(false)
-  themeKey            String                     @default("warrior") @map("theme_key")
+  armorClass            Int                      @default(10) @map("armor_class")
+  initiative            Int                      @default(0)
+  speed                 Int                      @default(30)
+  spellSaveDc           Int?                     @map("spell_save_dc")
+  spellAttackBonus      Int?                     @map("spell_attack_bonus")
+  inspiration           Boolean                  @default(false)
+  themeKey              String                   @default("warrior") @map("theme_key")
   
-  armorCategory       ArmorCategory              @default(NONE) @map("armor_category")
-  armorBaseClass      Int?                       @map("armor_base_class")
-  armorDexCap         Int?                       @map("armor_dex_cap")
-  shieldBonus         Int                        @default(0) @map("shield_bonus")
+  armorCategory         ArmorCategory            @default(NONE) @map("armor_category")
+  armorBaseClass        Int?                     @map("armor_base_class")
+  armorDexCap           Int?                     @map("armor_dex_cap")
+  shieldBonus           Int                      @default(0) @map("shield_bonus")
   
-  selectedFeats       Json                       @default("[]") @map("selected_feats")
+  // Stocke les dons et les choix de demi-dons (ex: { featId, name, abilityIncrease })
+  selectedFeats         Json                     @default("[]") @map("selected_feats")
   
-  copperPieces        Int                        @default(0) @map("copper_pieces")
-  silverPieces        Int                        @default(0) @map("silver_pieces")
-  electrumPieces      Int                        @default(0) @map("electrum_pieces")
-  goldPieces          Int                        @default(0) @map("gold_pieces")
-  platinumPieces      Int                        @default(0) @map("platinum_pieces")
+  copperPieces          Int                      @default(0) @map("copper_pieces")
+  silverPieces          Int                      @default(0) @map("silver_pieces")
+  electrumPieces        Int                      @default(0) @map("electrum_pieces")
+  goldPieces            Int                      @default(0) @map("gold_pieces")
+  platinumPieces        Int                      @default(0) @map("platinum_pieces")
   
-  personalityTraits   String?                    @db.Text @map("personality_traits")
-  ideals              String?                    @db.Text
-  bonds               String?                    @db.Text
-  flaws               String?                    @db.Text
-  appearance          String?                    @db.Text
-  backstory           String?                    @db.Text
-  alliesOrganizations String?                    @db.Text @map("allies_organizations")
-  notebookTheme       String?                    @default("parchment") @map("notebook_theme")
+  personalityTraits     String?                  @db.Text @map("personality_traits")
+  ideals                String?                  @db.Text
+  bonds                 String?                  @db.Text
+  flaws                 String?                  @db.Text
+  appearance            String?                  @db.Text
+  backstory             String?                  @db.Text
+  alliesOrganizations   String?                  @db.Text @map("allies_organizations")
+  notebookTheme         String?                  @default("parchment") @map("notebook_theme")
   
-  createdAt           DateTime                   @default(now()) @map("created_at")
-  updatedAt           DateTime                   @updatedAt @map("updated_at")
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  updatedAt             DateTime                 @updatedAt @map("updated_at")
   
   // Relations
-  user                User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  species             Species?                   @relation(fields: [speciesId], references: [id], onDelete: SetNull)
-  dndSubspecies       Subspecies?                @relation(fields: [subspeciesId], references: [id], onDelete: SetNull)
-  background          Background?                @relation(fields: [backgroundId], references: [id], onDelete: SetNull)
-  dndClass            DndClass?                  @relation(fields: [dndClassId], references: [id], onDelete: SetNull)
-  dndSubclass         DndSubclass?               @relation(fields: [subclassId], references: [id], onDelete: SetNull)
+  user                  User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  species               Species?                 @relation(fields: [speciesId], references: [id], onDelete: SetNull)
+  dndSubspecies         Subspecies?              @relation(fields: [subspeciesId], references: [id], onDelete: SetNull)
+  background            Background?              @relation(fields: [backgroundId], references: [id], onDelete: SetNull)
+  dndClass              DndClass?                @relation(fields: [dndClassId], references: [id], onDelete: SetNull)
+  dndSubclass           DndSubclass?             @relation(fields: [subclassId], references: [id], onDelete: SetNull)
   
-  notebooks           CharacterNotebook[]
-  campaignLinks       CampaignCharacter[]
-  sessionLinks        SessionAttendee[]
-  sessionNotes        SessionNote[]
-  spells              CharacterSpell[]
-  inventory           CharacterInventoryItem[]
-  weaponMasteries     CharacterWeaponMastery[]
-  optionalFeatures    CharacterOptionalFeature[] // <-- Lien ajouté
-  resources           CharacterResourceTracker[]
-  languages           CharacterLanguage[]
+  notebooks             CharacterNotebook[]
+  campaignLinks         CampaignCharacter[]
+  sessionLinks          SessionAttendee[]
+  sessionNotes          SessionNote[]
+  spells                CharacterSpell[]
+  inventory             CharacterInventoryItem[]
+  weaponMasteries       CharacterWeaponMastery[]
+  optionalFeatures      CharacterOptionalFeature[]
+  resources             CharacterResourceTracker[]
+  languages             CharacterLanguage[]
 
   @@map("characters")
 }
