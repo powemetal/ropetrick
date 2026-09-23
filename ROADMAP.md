@@ -71,7 +71,6 @@
 - [x] Sorts connus et préparés (`spells` via `CharacterSpell`)
 - [x] Inventaire physique, équipement et attunements (`inventory` via `CharacterInventoryItem`)
 - [x] Suivi des maîtrises d'armes 2024 (`weaponMasteries` via `CharacterWeaponMastery`)
-- [ ] Options modulaires de classe : Invocations, Métamagie, Manœuvres (`optionalFeatures` via `CharacterOptionalFeature`)
 - [x] Compteurs de ressources consommables : Rages, Ki, etc. (`resources` via `CharacterResourceTracker`)
 - [x] Langues maîtrisées (`languages` via `CharacterLanguage`)
 - [x] Carnets de notes personnels et pièces jointes (`notebooks`)
@@ -124,18 +123,34 @@
 - [x] En-tête & Statistiques dérivées :
   - [x] Affichage de la vitesse calculée, vision dans le noir et sens passifs
   - [x] Jauge de progression des points d'expérience (XP)
-- [ ] Module Jets contre la mort :
-  - [ ] Affichage automatique dès que les PV tombent à 0 (3 bulles de succès, 3 bulles d'échec)
+- [x] Module Jets contre la mort :
+  - [x] Affichage automatique dès que les PV tombent à 0 (3 bulles de succès, 3 bulles d'échec)
 - [x] Onglet Inventaire enrichi :
   - [x] Barre de progression de la charge portée vs capacité maximale
   - [x] Cases d'harmonisation active (3 slots max)
   - [x] Cartes d'armes avec détails cliquables (dés, propriétés)
+- [ ] Options modulaires de classe : Invocations, Métamagie, Manœuvres (`optionalFeatures` via `CharacterOptionalFeature`)
 - [ ] Onglet Dons & Aptitudes :
   - [ ] Compteurs interactifs d'utilisations par repos
   - [ ] Interface de choix de statistique pour les demi-dons
 - [ ] Onglet Biographie & Apparence :
   - [ ] Champs dédiés : Alignement, Âge, Taille, Poids, Yeux, Peau, Cheveux
   - [ ] Affichage des langues maîtrisées
+
+## Phase 5 : Processus de Création de Personnage (Wizard) — *En cours (Débuggage & Polissage)*
+- [x] Structure de base étape par étape (Wizard) :
+  - [x] Choix de l'espèce, sous-espèce et historique
+  - [x] Sélection de la classe de départ
+  - [x] Répartition des caractéristiques (Point Buy)
+  - [x] Sélection des compétences, sorts et maîtrises d'armes
+- [ ] Résolution des bugs et validation finale :
+  - [ ] Correction des quotas de sélection (compétences, sorts, maîtrises)
+  - [ ] Cohérence de la persistance des données à la soumission (`onSubmit`)
+  - [ ] Gestion des cas particuliers (classes non-lanceuses vs lanceuses de sorts)
+- [ ] Polissage, Filtres et Ergonomie :
+  - [ ] Ajout de **combobox interactives** avec recherche textuelle pour les listes denses (sorts, équipements, etc.)
+  - [ ] Implémentation du **tri et filtrage par livre / source officielle** (ex. PHB 2024)
+
 
 <br><br>
 
