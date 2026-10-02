@@ -50,7 +50,8 @@
 ## 5. Combat, Santé et Survie
 - [x] Points de vie (Max, Actuels, Temporaires)
 - [x] Dés de vie (Type de dé, Total, Actuels)
-- [ ] Sauvegardes contre la mort (`deathSaves`) et niveau d'épuisement (`exhaustionLevel`)
+- [x] Sauvegardes contre la mort (`deathSaves`)
+- [ ] Niveau d'épuisement (`exhaustionLevel`)
 - [x] Défenses et déplacements (`armorClass`, `initiative`, `speed`)
 
 ## 6. Équipement, Armure et Devises

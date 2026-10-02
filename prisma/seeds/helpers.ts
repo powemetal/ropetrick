@@ -15,8 +15,10 @@ export function slugify(text: string): string {
 
 export function resolveDataFile(filename: string): string | null {
   const possiblePaths = [
+    path.join(__dirname, "..", "data_personnal", filename),
     path.join(__dirname, "..", "data", filename),
     path.join(__dirname, filename),
+    path.join(process.cwd(), "prisma", "data_personnal", filename),
     path.join(process.cwd(), "prisma", "data", filename),
     path.join(process.cwd(), "data", filename),
     path.join(process.cwd(), filename),
@@ -63,9 +65,11 @@ export function mapCasterProgression(prog?: string): SpellcastingProgression {
 
 export function findClassFiles(): string[] {
   const possibleDirs = [
+    path.join(__dirname, "..", "data_personnal"),
     path.join(__dirname, "..", "data"),
     path.join(__dirname, "data"),
     __dirname,
+    path.join(process.cwd(), "prisma", "data_personnal"),
     path.join(process.cwd(), "prisma", "data"),
     path.join(process.cwd(), "data"),
     process.cwd(),

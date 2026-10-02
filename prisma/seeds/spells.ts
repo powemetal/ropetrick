@@ -93,7 +93,7 @@ function cleanHtmlDescription(html: string | null): string {
 }
 
 export async function seedSpells(prisma: PrismaClient) {
-  const csvFilePath = path.join(__dirname, "../data/Spells.csv");
+  const csvFilePath = path.join(__dirname, "../data_personnal/Spells.csv");
 
   if (!fs.existsSync(csvFilePath)) {
     throw new Error(`Le fichier Spells.csv est introuvable à : ${csvFilePath}`);
