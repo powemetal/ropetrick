@@ -10,3 +10,4 @@ build/
 .env.production
 .env.development
 node_modules
+prisma/data_personnal/

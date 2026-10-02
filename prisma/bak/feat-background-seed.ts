@@ -202,8 +202,8 @@ function extractAbilityChoices(abilityObjList?: any[]): string[] {
 }
 
 async function main() {
-  const featsPath = path.join(__dirname, "data/feats.json");
-  const bgsPath = path.join(__dirname, "data/backgrounds.json");
+  const featsPath = path.join(__dirname, "data_personnal/feats.json");
+  const bgsPath = path.join(__dirname, "data_personnal/backgrounds.json");
 
   if (!fs.existsSync(featsPath)) {
     throw new Error(`Fichier introuvable : ${featsPath}`);

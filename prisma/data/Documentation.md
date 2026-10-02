@@ -73,7 +73,7 @@ npx tsx prisma/seed.ts
 
 # Guide de Structure des Fichiers JSON (Données Source)
 
-Ce document décrit le format et les champs attendus dans chaque fichier JSON placé dans le dossier prisma/data/ pour que le système d'importation (seed) puisse les traiter correctement.
+Ce document décrit le format et les champs attendus dans chaque fichier JSON placé dans le dossier prisma/data_personnal/ pour que le système d'importation (seed) puisse les traiter correctement.
 
 ---
 

@@ -20,8 +20,10 @@ function slugify(text: string): string {
 
 function resolveDataFile(filename: string): string | null {
   const possiblePaths = [
+    path.join(__dirname, "data_personnal", filename),
     path.join(__dirname, "data", filename),
     path.join(__dirname, filename),
+    path.join(process.cwd(), "prisma", "data_personnal", filename),
     path.join(process.cwd(), "prisma", "data", filename),
     path.join(process.cwd(), "data", filename),
     path.join(process.cwd(), filename),

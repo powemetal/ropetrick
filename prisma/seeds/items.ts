@@ -64,7 +64,7 @@ function parseProperties(rawProperties?: string): string[] {
 }
 
 export async function seedItems(prisma: PrismaClient) {
-  const csvFilePath = path.join(__dirname, "../data/Items.csv");
+  const csvFilePath = path.join(__dirname, "../data_personnal/Items.csv");
 
   if (!fs.existsSync(csvFilePath)) {
     console.warn(`⚠️ Fichier Items.csv introuvable à : ${csvFilePath}. Étape ignorée.`);
